@@ -25,6 +25,16 @@ ANAI is a Python package for interacting with the Anthropic API.
 
    Replace `your_api_key_here` with your actual Anthropic API key.
 
+
+## Data Matrix
+Here are all of the parameters:
+- animal
+- persona
+- moral dilemma type
+- question type
+- amount of manipulation towards particular group
+
+
 ## Running Tests
 
 To run the tests, use pytest:

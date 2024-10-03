@@ -1,0 +1,42 @@
+[
+    {
+      "role": "Farmers",
+      "description": "Raise livestock and grow crops for animal feed"
+    },
+    {
+      "role": "Feed Manufacturers",
+      "description": "Process raw ingredients into balanced animal feed"
+    },
+    {
+      "role": "Veterinarians",
+      "description": "Provide healthcare and nutrition advice for animals"
+    },
+    {
+      "role": "Slaughterhouse Workers",
+      "description": "Process animals into meat products"
+    },
+    {
+      "role": "Food Safety Inspectors",
+      "description": "Ensure compliance with health and safety regulations"
+    },
+    {
+      "role": "Distributors",
+      "description": "Transport and deliver animal food products to retailers"
+    },
+    {
+      "role": "Retailers",
+      "description": "Sell animal food products to consumers"
+    },
+    {
+      "role": "Consumers",
+      "description": "Purchase and use animal food products"
+    },
+    {
+      "role": "Regulators",
+      "description": "Develop and enforce food safety and animal welfare policies"
+    },
+    {
+      "role": "Nutritionists",
+      "description": "Formulate balanced diets for different animal species"
+    }
+]

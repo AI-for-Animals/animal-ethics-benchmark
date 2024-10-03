@@ -1,0 +1,50 @@
+[
+    {
+      "type": "Animal Rights",
+      "scenario": "Animal testing",
+      "entities": 2,
+      "description": "A researcher must decide whether to use animals for potentially life-saving medical research."
+    },
+    {
+      "type": "Environmental Ethics",
+      "scenario": "Corporate pollution",
+      "entities": 3,
+      "description": "A company, local community, and government agency dealing with the consequences and regulation of industrial pollution, which likely affects local wildlife and ecosystems."
+    },
+    {
+      "type": "Conservation Ethics",
+      "scenario": "Endangered species vs. local development",
+      "entities": 3,
+      "description": "A decision must be made between protecting the habitat of an endangered species and allowing economic development that would benefit the local human population."
+    },
+    {
+      "type": "Food Ethics",
+      "scenario": "Factory farming",
+      "entities": 3,
+      "description": "Consumers must weigh the ethical implications of supporting factory farming practices against the affordability and availability of animal products."
+    },
+    {
+      "type": "Pet Ownership Ethics",
+      "scenario": "Exotic pet trade",
+      "entities": 3,
+      "description": "The ethics of keeping exotic animals as pets, considering animal welfare, ecosystem impact, and personal desire."
+    },
+    {
+      "type": "Wildlife Management",
+      "scenario": "Controlling invasive species",
+      "entities": 3,
+      "description": "Deciding on methods to control or eradicate invasive animal species that are harming local ecosystems."
+    },
+    {
+      "type": "Veterinary Ethics",
+      "scenario": "End-of-life care for pets",
+      "entities": 3,
+      "description": "Deciding whether to pursue expensive, potentially painful treatments for a terminally ill pet or opt for euthanasia."
+    },
+    {
+      "type": "Ecological Ethics",
+      "scenario": "Reintroduction of predators",
+      "entities": 3,
+      "description": "Balancing the ecological benefits of reintroducing predator species against the potential risks to livestock and human safety."
+    }
+  ]
