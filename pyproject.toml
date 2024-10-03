@@ -5,9 +5,15 @@ description = "Add your description here"
 authors = [
     { name = "Ronak Mehta", email = "ronakrm@gmail.com" }
 ]
-dependencies = []
+dependencies = [
+    "anthropic>=0.34.2",
+    "pandas>=2.2.3",
+    "pytest>=8.3.3",
+    "python-dotenv>=1.0.1",
+    # Add this line
+]
 readme = "README.md"
-requires-python = ">= 3.8"
+requires-python = ">= 3.10"
 
 [build-system]
 requires = ["hatchling"]
@@ -21,4 +27,9 @@ dev-dependencies = []
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/anai"]
+packages = ["anai"]
+
+[tool.pytest.ini_options]
+markers = [
+    "live_api: marks tests that use the live API (deselect with '-m \"not live_api\"')"
+]
