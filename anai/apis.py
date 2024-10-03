@@ -18,30 +18,29 @@ class AnthropicAPI:
     def generate_response(
         self,
         prompt: str,
-        model: str = os.environ.get(
-            "ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620"
-        ),  # /claude-3-opus-20240229
+        system_prompt: Optional[str] = None,
         max_tokens: int = 1000,
-        temperature: float = 0.7,
+        temperature: float = 0.0,
     ) -> str:
         """
         Generate a response using the Anthropic API.
 
         Args:
             prompt (str): The input prompt for the model.
-            model (str): The model to use (default: "claude-3-5-sonnet-20240620").
+            system_prompt (Optional[str]): The system prompt for the model.
             max_tokens (int): Maximum number of tokens in the response (default: 1000).
-            temperature (float): Controls randomness in output (default: 0.7).
+            temperature (float): Controls randomness in output (default: 0.0).
 
         Returns:
             str: The generated response from the model.
         """
         try:
             message = self.client.messages.create(
-                model=model,
+                model=self.model,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 messages=[{"role": "user", "content": prompt}],
+                system=system_prompt if system_prompt else anthropic.NOT_GIVEN,
             )
             return message.content[0].text
         except Exception as e:
@@ -65,7 +64,7 @@ class Agent:
     def __init__(self, api: AnthropicAPI, system_prompt: Optional[str] = None):
         self.api = api
         self.system_prompt = system_prompt
-        self.conversation_history = []
+        self.conversation_history: list[dict[str, str]] = []
 
     def send_message(self, message: str) -> str:
         """
@@ -77,28 +76,7 @@ class Agent:
         Returns:
             str: The response from the agent.
         """
-        full_prompt = self._build_prompt(message)
-        response = self.api.generate_response(full_prompt)
+        response = self.api.generate_response(message, system_prompt=self.system_prompt)
         self.conversation_history.append({"role": "user", "content": message})
         self.conversation_history.append({"role": "assistant", "content": response})
         return response
-
-    def _build_prompt(self, message: str) -> str:
-        """
-        Build the full prompt including system prompt and conversation history.
-
-        Args:
-            message (str): The current message to be added to the prompt.
-
-        Returns:
-            str: The full prompt for the API call.
-        """
-        prompt = ""
-        if self.system_prompt:
-            prompt += f"System: {self.system_prompt}\n\n"
-
-        for entry in self.conversation_history:
-            prompt += f"{entry['role'].capitalize()}: {entry['content']}\n\n"
-
-        prompt += f"Human: {message}\n\nAssistant:"
-        return prompt

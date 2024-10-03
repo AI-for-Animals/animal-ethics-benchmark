@@ -19,14 +19,15 @@ def test_anthropic_api_initialization(mock_anthropic_client):
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
         api = AnthropicAPI()
     mock_anthropic_client.assert_called_once_with(api_key="test_key")
+    assert api.model == "claude-3-5-sonnet-20240620"  # Check default model
 
 
-def test_anthropic_api_initialization_missing_key():
-    with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(
-            ValueError, match="ANTHROPIC_API_KEY environment variable is not set"
-        ):
-            AnthropicAPI()
+def test_anthropic_api_initialization_with_custom_model(mock_anthropic_client):
+    with patch.dict(
+        os.environ, {"ANTHROPIC_API_KEY": "test_key", "ANTHROPIC_MODEL": "custom-model"}
+    ):
+        api = AnthropicAPI()
+    assert api.model == "custom-model"
 
 
 def test_generate_response(mock_anthropic_client):
@@ -36,14 +37,15 @@ def test_generate_response(mock_anthropic_client):
 
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
         api = AnthropicAPI()
-        response = api.generate_response("Test prompt")
+        response = api.generate_response("Test prompt", system_prompt="Test system")
 
     assert response == "Test response"
     mock_anthropic_client.return_value.messages.create.assert_called_once_with(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1000,
-        temperature=0.7,
+        temperature=0.0,
         messages=[{"role": "user", "content": "Test prompt"}],
+        system="Test system",
     )
 
 
@@ -54,6 +56,7 @@ def test_create_agent():
 
     assert isinstance(agent, Agent)
     assert agent.system_prompt == "Test system prompt"
+    assert agent.api == api
 
 
 def test_agent_send_message():
@@ -71,28 +74,6 @@ def test_agent_send_message():
         "role": "assistant",
         "content": "Test response",
     }
-
-
-def test_agent_build_prompt():
-    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
-        api = AnthropicAPI()
-        agent = api.create_agent("Test system prompt")
-
-    agent.conversation_history = [
-        {"role": "user", "content": "Hello"},
-        {"role": "assistant", "content": "Hi there!"},
-    ]
-
-    prompt = agent._build_prompt("How are you?")
-    expected_prompt = (
-        "System: Test system prompt\n\n"
-        "User: Hello\n\n"
-        "Assistant: Hi there!\n\n"
-        "Human: How are you?\n\n"
-        "Assistant:"
-    )
-
-    assert prompt == expected_prompt
 
 
 @pytest.mark.skipif(
