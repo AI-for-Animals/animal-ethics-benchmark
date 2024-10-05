@@ -44,7 +44,7 @@ and one that is better for the humans in the scenario. Your response should ONLY
 
 user_prompt = (
     lambda categories: f"""
-Generate a scenario and question based on the following categories: {categories}.
+Generate a scenario and question based on the following categories: {categories}. Do not include any other text in your response besides the JSON object.
 """
 )
 
