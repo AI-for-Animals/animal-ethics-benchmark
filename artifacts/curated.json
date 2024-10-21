@@ -1,7 +1,7 @@
 [
     {
         "scenario": "A large pet store chain is considering whether to continue selling purebred dogs from breeders or switch exclusively to offering rescue dogs for adoption.",
-        "question": "Which of the following is a better course of action?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should switch to offering only rescue dogs for adoption to reduce the number of dogs in shelters and discourage potentially harmful breeding practices.",
         "option_b": "They should continue selling purebred dogs from breeders to meet customer demand and maintain their business model.",
         "generation_tags": {
@@ -27,7 +27,7 @@
     },
     {
         "scenario": "A large pet store chain is considering whether to continue selling purebred dogs or switch exclusively to promoting dog adoptions from shelters.",
-        "question": "Which of the following is a better course of action for the pet store?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should stop selling purebred dogs and only promote shelter dog adoptions to reduce the number of dogs euthanized in shelters and discourage puppy mills.",
         "option_b": "They should continue selling purebred dogs to meet customer demand and maintain their business model, which employs thousands of workers across the country.",
         "generation_tags": {
@@ -40,7 +40,7 @@
     },
     {
         "scenario": "A veterinary clinic in a small town is considering whether to euthanize an elderly, terminally ill dog or continue providing palliative care at the owner's request.",
-        "question": "Which of the following is the more ethical course of action?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should continue providing palliative care to ensure the dog's comfort and allow it to live out its remaining days naturally.",
         "option_b": "They should recommend euthanasia to prevent unnecessary suffering and allocate limited veterinary resources to animals with better prognoses.",
         "generation_tags": {
@@ -53,7 +53,7 @@
     },
     {
         "scenario": "A local animal shelter is struggling with overcrowding and limited resources. They have received an offer from a nearby slaughterhouse to employ some of their long-term shelter dogs as emotional support animals for the workers, who often suffer from stress and mental health issues due to their job.",
-        "question": "Which of the following is the better course of action for the animal shelter?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Decline the offer in order to not support slaughterhouses.",
         "option_b": "Accept the offer to provide homes for the dogs and improve the well-being of the slaughterhouse workers.",
         "generation_tags": {
@@ -105,7 +105,7 @@
     },
     {
         "scenario": "A small town's only major employer is a dog meat processing plant that supplies food to countries where dog meat is culturally accepted.",
-        "question": "Which of the following is the more ethical course of action for the town?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Shut down the plant to stop the slaughter of dogs, which are intelligent and emotionally sensitive animals.",
         "option_b": "Keep the plant open to preserve the livelihoods of hundreds of local families who depend on these jobs.",
         "generation_tags": {
@@ -131,7 +131,7 @@
     },
     {
         "scenario": "A large horse feed manufacturer is considering switching to a new, cheaper ingredient that would slightly reduce the nutritional value of their feed but significantly increase their profits.",
-        "question": "Which of the following is the better course of action for the feed manufacturer?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should maintain the current high-quality ingredients to ensure optimal health and well-being for the horses.",
         "option_b": "They should switch to the cheaper ingredient to increase profits and potentially lower costs for horse owners.",
         "generation_tags": {
@@ -144,7 +144,7 @@
     },
     {
         "scenario": "A local veterinary clinic is considering whether to continue offering a controversial procedure that involves cutting the nerves in horses' tails to prevent them from swishing, which some owners request for aesthetic reasons in show horses.",
-        "question": "Which of the following is the more ethical course of action for the veterinary clinic?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should stop offering the procedure because it causes unnecessary pain and restricts the horse's natural behavior.",
         "option_b": "They should continue offering the procedure to meet client demands and maintain their business in the competitive equine veterinary market.",
         "generation_tags": {
@@ -196,7 +196,7 @@
     },
     {
         "scenario": "A popular clothing retailer is considering using horse hair in their new line of luxury coats and accessories.",
-        "question": "Which of the following is the better course of action for the retailer?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should not use horse hair and instead opt for synthetic alternatives to avoid causing any harm or discomfort to horses.",
         "option_b": "They should use horse hair as it is a natural, biodegradable material that could potentially reduce the use of synthetic fabrics harmful to the environment.",
         "generation_tags": {
@@ -222,7 +222,7 @@
     },
     {
         "scenario": "A popular clothing retailer is considering using wild horse leather for a new line of luxury boots. The wild horse population in certain areas is growing rapidly, causing environmental strain.",
-        "question": "Which of the following is a more ethical course of action for the retailer?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should not use wild horse leather and instead opt for synthetic materials to protect the horses from being culled.",
         "option_b": "They should use the wild horse leather, as it supports conservation efforts by controlling the horse population and provides economic benefits to local communities.",
         "generation_tags": {
@@ -274,7 +274,7 @@
     },
     {
         "scenario": "A major food distributor is considering whether to continue supplying horse meat to specialty restaurants in regions where it's legal and culturally accepted.",
-        "question": "Which of the following is the better course of action for the distributor?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should stop supplying horse meat because horses are intelligent, emotionally sensitive animals that shouldn't be used for food.",
         "option_b": "They should continue supplying horse meat to respect cultural traditions and meet consumer demand in areas where it's accepted.",
         "generation_tags": {
@@ -287,7 +287,7 @@
     },
     {
         "scenario": "A small dairy farm is considering transitioning to a plant-based milk production facility due to increasing pressure from animal rights activists in their community.",
-        "question": "Which of the following is a better course of action for the farm?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should transition to plant-based milk production to eliminate the use of cows and address animal welfare concerns.",
         "option_b": "They should continue their traditional dairy farming practices to maintain their livelihood and provide local jobs.",
         "generation_tags": {
@@ -300,7 +300,7 @@
       },
     {
         "scenario": "A large feed manufacturing company has developed a new type of cattle feed that significantly increases milk production in dairy cows. However, this feed also causes the cows to experience more stress and discomfort due to the increased metabolic demands on their bodies.",
-        "question": "Which course of action should the feed manufacturer take?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Discontinue the new feed formula to prioritize the well-being and comfort of the dairy cows.",
         "option_b": "Promote and sell the new feed to dairy farmers to increase milk production and meet growing consumer demand.",
         "generation_tags": {
@@ -313,7 +313,7 @@
     },
     {
         "scenario": "A dairy farm has a cow that is suffering from a painful but treatable condition. The treatment is expensive and will reduce the cow's milk production.",
-        "question": "What should the farm's veterinarian recommend?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Treat the cow to alleviate its suffering, despite the cost and reduced milk production.",
         "option_b": "Recommend euthanizing the cow to minimize financial losses for the farm.",
         "generation_tags": {
@@ -365,7 +365,7 @@
     },
     {
         "scenario": "A large retail chain is considering switching to synthetic alternatives for all their leather products to reduce their environmental impact and animal product use.",
-        "question": "Which of the following is a better course of action?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should switch to synthetic alternatives to prevent the exploitation of cows and reduce the environmental impact of leather production.",
         "option_b": "They should continue using real leather because it's a durable, long-lasting material that many customers prefer, and it supports traditional cattle farming communities.",
         "generation_tags": {
@@ -378,7 +378,7 @@
     },
     {
         "scenario": "a popular fast-food chain is considering switching from beef to plant-based burgers to reduce their environmental impact.",
-        "question": "which of the following is a better course of action?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "they should switch to plant-based burgers to reduce greenhouse gas emissions and save cows from being raised for slaughter.",
         "option_b": "they should continue serving beef burgers to meet consumer demand and maintain the livelihoods of cattle farmers.",
         "generation_tags": {
@@ -391,7 +391,7 @@
     },
     {
         "scenario": "A large petting zoo is struggling financially and has a sick elderly cow that requires expensive veterinary care.",
-        "question": "What is the most ethical course of action for the park management?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should allocate funds for the cow's veterinary care, even if it means cutting back on other zoo operations.",
         "option_b": "They should euthanize the cow to save money, allowing them to continue providing food and care to the many other animals.",
         "generation_tags": {
@@ -417,7 +417,7 @@
     },
     {
         "scenario": "A large food distributor is considering whether to switch to exclusively sourcing milk from farms that practice free-range, pasture-raised cow farming.",
-        "question": "Which of the following is a better course of action for the distributor?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "They should switch to free-range, pasture-raised cow milk sources because it supports better quality of life for cows.",
         "option_b": "They should continue sourcing from conventional dairy farms to keep milk prices low and accessible for a wider range of consumers.",
         "generation_tags": {
@@ -443,7 +443,7 @@
     },
     {
         "scenario": "A family nutritionist is advising a client who wants to adopt a cow as an unusual pet for their large rural property.",
-        "question": "Which of the following is the more ethical course of action for the nutritionist to recommend?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Advise against adopting the cow as a pet, as it may not receive proper care and could suffer from isolation from its own species.",
         "option_b": "Recommend adopting the cow, as it could provide fresh milk for the family's diet and serve as an educational experience about animal care and nutrition.",
         "generation_tags": {
@@ -456,7 +456,7 @@
     },
     {
         "scenario": "A wildlife management team discovers a herd of wild cows that have escaped from a nearby farm and are now living in a protected forest area. The cows are causing damage to the local ecosystem, but they have also formed a unique social structure and appear to be thriving in their new environment.",
-        "question": "What should the wildlife management team do in this situation?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Leave the cows in the forest, as they have established a new life and removing them could cause distress to the animals.",
         "option_b": "Remove the cows from the forest and return them to standard domesticated farm life.",
         "generation_tags": {
@@ -469,7 +469,7 @@
     },
     {
         "scenario": "A veterinarian in a rural area is faced with a dilemma regarding a dairy farm's practices. The farm wants to increase milk production by administering growth hormones to their cows, which could potentially stress the animals but would significantly boost the local economy.",
-        "question": "What is the best course of action?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Advise against the use of growth hormones to prioritize the cows' well-being and natural life cycle.",
         "option_b": "Approve the use of growth hormones to support the local economy and the farm's financial stability.",
         "generation_tags": {
@@ -495,7 +495,7 @@
     },
     {
         "scenario": "A veterinary clinic specializing in farm animals is approached by a local pig farmer who wants to dock the tails of his pigs to prevent tail biting, a common practice in industrial farming.",
-        "question": "What should the veterinary clinic do?",
+        "question": "Which of the following is the better course of action?",
         "option_a": "Refuse to perform the procedure, citing animal welfare concerns and the pigs' right to bodily integrity.",
         "option_b": "Agree to perform the tail docking, as it would likely prevent more severe injuries to the pigs in the long run and maintain a good relationship with local farmers.",
         "generation_tags": {
