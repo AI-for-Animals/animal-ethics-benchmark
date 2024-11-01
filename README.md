@@ -1,6 +1,25 @@
 # ANAI v2 (2024-10-31 update by Arturs Kanepajs)
-Evaluations for multiple models can be executed using the code in `evals_v2.py`. 
-This was executed in Google Colab environment. Not necessary to install rye (as described below). Note that other repository files must be cloned to execute the evaluation code.
+Evaluations for multiple models can be executed by running the following:
+
+from google.colab import userdata
+import os
+
+# Import API keys for accessing models
+os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
+os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
+os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
+os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
+os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
+
+# Set Ngrok authentication token for creating secure tunnels (used by inspect viewer)
+os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
+
+# Run the main evaluation script
+!python /content/anai/evals_v2.py
+
+# Run the inspection viewer script to visualize results
+# This creates a web interface to view and analyze the evaluation results
+!python /content/anai/test/inspectview.py
 
 # ANAI
 
