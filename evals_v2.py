@@ -1,36 +1,111 @@
-from google.colab import userdata
+"""
+Model Evaluation Script using INSPECT Framework for Google Colab
+
+This script runs evaluations on various Large Language Models (LLMs) using the INSPECT framework
+developed by UK Government BEIS.
+
+Author: Arturs Kanepajs
+Date: 2024-11-02
+"""
+
+import subprocess
 import os
+from pathlib import Path
 
-# Install
-#!pip install inspect-ai
-#!pip install git+https://github.com/UKGovernmentBEIS/inspect_evals
-#!pip install openai
-#!pip install anthropic
-#!pip install --upgrade google-generativeai
-#!pip install mistralai
+def install_packages():
+    """Install required packages using pip."""
+    packages = [
+        'inspect-ai',
+        'git+https://github.com/UKGovernmentBEIS/inspect_evals',
+        'openai',
+        'anthropic',
+        'google-generativeai',
+        'mistralai'
+    ]
+    
+    for package in packages:
+        try:
+            if package == 'google-generativeai':
+                subprocess.run(['pip', 'install', '--upgrade', package], check=True)
+            else:
+                subprocess.run(['pip', 'install', package], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error installing {package}: {e}")
+            raise
 
+def verify_task_file():
+    """Verify that the task file exists and is in the correct location."""
+    task_path = Path('/content/anai/anai_inspect_task_v2.py')
+    if not task_path.exists():
+        raise FileNotFoundError(f"Task file not found at {task_path}")
+    print(f"Found task file at: {task_path}")
+    return task_path
 
-# Set the API key
-os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
-os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
-os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
-os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
-os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
+def verify_dataset():
+    """Verify that the dataset directory exists."""
+    dataset_dir = Path('/content/anai/artifacts')
+    if not dataset_dir.exists():
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Created dataset directory at {dataset_dir}")
+    return dataset_dir
 
-#models
-# https://inspect.ai-safety-institute.org.uk/
-# https://docs.anthropic.com/en/docs/about-claude/models 
-# https://ai.google.dev/gemini-api/docs/models/gemini 
-# https://docs.mistral.ai/getting-started/models/models_overview/
-# https://api.together.ai/models 
+def run_evaluation(model, task_path):
+    """Run evaluation for a specific model."""
+    try:
+        # Change to the directory containing the task file
+        os.chdir(task_path.parent)
+        
+        cmd = [
+            'inspect', 'eval',
+            str(task_path.name),  # Use just the filename since we're in the correct directory
+            '--model', model,
+            '--limit', '1000'
+        ]
+        print(f"Running command: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running evaluation for {model}: {e}")
+        raise
 
+def main():
+    """Main function to run the evaluation process."""
+    try:
+        # Install required packages
+        print("Installing required packages...")
+        install_packages()
+        
+        # Verify task file and dataset directory
+        task_path = verify_task_file()
+        dataset_dir = verify_dataset()
+        print(f"Using task file: {task_path}")
+        print(f"Dataset directory: {dataset_dir}")
+        
+        # Define available models
+        models = {
+            'claude_haiku': 'anthropic/claude-3-haiku-20240307',
+            'claude_sonnet': 'anthropic/claude-3-5-sonnet-20241022',
+            'gpt4': 'openai/gpt-4o-2024-08-06',
+            'gemini': 'google/gemini-1.5-pro-002',
+            'llama': 'together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo',
+            'openai_preview': 'openai/o1-preview-2024-09-12',
+            'mistral': 'mistral/mistral-large-2407'
+        }
+        
+        # Run evaluation for Claude Haiku model
+        print(f"Running evaluation for Claude Haiku model...")
+        run_evaluation(models['claude_haiku'], task_path)
+        
+        # Uncomment below lines to run evaluations for other models
+        # run_evaluation(models['claude_sonnet'], task_path)
+        # run_evaluation(models['gpt4'], task_path)
+        # run_evaluation(models['gemini'], task_path)
+        # run_evaluation(models['llama'], task_path)
+        # run_evaluation(models['openai_preview'], task_path)
+        # run_evaluation(models['mistral'], task_path)
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        raise
 
-# Run the inspect command
-
-#!inspect eval anai_inspect_task_v2.py --model anthropic/claude-3-haiku-20240307 --limit 1000
-#!inspect eval anai_inspect_task_v2.py --model anthropic/claude-3-5-sonnet-20241022 --limit 1000
-#!inspect eval anai_inspect_task_v2.py --model openai/gpt-4o-2024-08-06	--limit 1000
-#!inspect eval anai_inspect_task_v2.py --model google/gemini-1.5-pro-002 --limit 1000
-#!inspect eval anai_inspect_task_v2.py --model together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo --limit 1000
-#!inspect eval anai_inspect_task_v2.py --model openai/o1-preview-2024-09-12 --limit 1000
-!inspect eval anai_inspect_task_v2.py --model mistral/mistral-large-2407 --limit 1000
+if __name__ == "__main__":
+    main()
