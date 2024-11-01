@@ -1,3 +1,7 @@
+# ANAI v2 (2024-10-31 update by Arturs Kanepajs)
+Evaluations for multiple models can be executed using the code in `evals_v2.py`. 
+This was executed in Google Colab environment. Not necessary to install rye (as described below). Note that other repository files must be cloned to execute the evaluation code.
+
 # ANAI
 
 ANAI is a Python package for interacting with the Anthropic API.
