@@ -1,6 +1,10 @@
 # ANAI v2 (2024-11-02 update by Arturs Kanepajs)
 
-To get detailed results for multiple LLMs in Google Colab:
+To get detailed results for multiple LLMs, prerequisites:
+- A Google Colab account 
+- A GitHub personal access token with repo scope
+- API keys stored in Google Colab secrets under appropriate names (ANTHROPIC_API_KEY, GOOGLE_API_KEY, etc.)
+- An Ngrok authentication token (free tier is sufficient)
  
 1) Clone the files
 ```
