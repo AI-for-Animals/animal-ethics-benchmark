@@ -1,6 +1,17 @@
 # ANAI v2 (2024-11-02 update by Arturs Kanepajs)
 
-Execute the following to get detailed results for multiple LLMs:
+To get detailed results for multiple LLMs in Google Colab:
+ 
+1) Clone the files
+```
+# Get token from environment and use it
+from google.colab import userdata
+import os
+personal_token = userdata.get('GITHUB_TOKEN')
+!git clone https://akanepajs:{personal_token}@github.com/ronakrm/anai.git
+```
+
+2) Execute the following:
 
 ```
 from google.colab import userdata
@@ -17,7 +28,7 @@ os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
 os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
 
 # Run the main evaluation script
-!python /content/anai/evals_v2.py
+!python /content/anai/evals_v2.py # Adjust this script to modify for which models to get results
 
 # Run the inspection viewer script to visualize results
 # This creates a web interface to view and analyze the evaluation results
