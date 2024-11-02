@@ -15,7 +15,7 @@ personal_token = userdata.get('GITHUB_TOKEN')
 !git clone https://akanepajs:{personal_token}@github.com/ronakrm/anai.git
 ```
 
-2) Execute the following:
+2) Execute the following. By default runs only claude-3-haiku-20240307, adjust /content/anai/evals_v2.py for results from other models.
 
 ```
 from google.colab import userdata
