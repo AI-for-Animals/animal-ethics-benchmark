@@ -7,8 +7,8 @@ import os
 # These keys must be pre-stored in Colab's userdata section (File > Upload to userdata)
 os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')    # For Claude models
 os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')          # For Gemini models
-os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')         # For GPT models
-os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')      # For Together AI models (Llama)
+os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')         # For OpenAI models
+os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')      # For  models accessed through Together AI (e.gLlama)
 os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')       # For Mistral models
 os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')       # For secure tunnels in inspect viewer
 
