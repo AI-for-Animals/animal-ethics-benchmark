@@ -1,34 +1,28 @@
-# ANAI v2 (2024-10-31 update by Arturs Kanepajs)
-# Import required modules for Google Colab
-from google.colab import userdata  # Allows secure access to stored API keys
+# ANAI v2 (2024-11-02 update by Arturs Kanepajs)
+
+Execute the following to get detailed results for multiple LLMs:
+
+```
+from google.colab import userdata
 import os
 
-# Set environment variables for API access
-# These keys must be pre-stored in Colab's userdata section (File > Upload to userdata)
-# For Claude models
+# Import API keys for accessing models
 os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
-
-# For OpenAI models
-os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
-
-# For Gemini models
 os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
-
-# For models accessed through Together AI (e.g. LLaMA)
+os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
 os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
-
-# For Mistral models
 os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
 
-# For secure tunnels in inspect viewer
+# Set Ngrok authentication token for creating secure tunnels (used by inspect viewer)
 os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
 
 # Run the main evaluation script
 !python /content/anai/evals_v2.py
 
-# Run the inspection viewer for visualizing results
+# Run the inspection viewer script to visualize results
+# This creates a web interface to view and analyze the evaluation results
 !python /content/anai/test/inspectview.py
-
+```
 
 # ANAI
 
