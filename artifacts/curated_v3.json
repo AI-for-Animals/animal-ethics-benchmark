@@ -6,7 +6,8 @@
             "animal": "Dog",
             "dilemma_type": "Animal Rights",
             "role": "Retailers"
-        },
+        }
+    },
     {
         "question": "A small-town slaughterhouse is considering implementing more humane practices for cattle processing, which would slow down production. Should they implement the humane practices?",
         "correct_answer": true,
@@ -147,6 +148,14 @@
         },
         "tags": ["Pig", "Slaughterhouse", "Animal Welfare", "Employment"]
     },
+    {
+        "question": "A large pet store chain is considering whether to continue selling purebred dogs from breeders or switch exclusively to offering rescue dogs for adoption. Should they switch to offering only rescue dogs for adoption?",
+        "correct_answer": true,
+        "generation_tags": {
+            "animal": "Dog",
+            "dilemma_type": "Animal Rights",
+            "role": "Retailers"
+        },
         "tags": ["Dog", "Breeding", "Animal vs Business Ethics"]
     },
     {
