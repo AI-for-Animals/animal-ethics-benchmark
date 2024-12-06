@@ -1,9 +1,11 @@
-from typing import Any, Dict
+from typing import Dict, Any
 from inspect_ai import task, Task
 from inspect_ai.dataset import json_dataset, Sample
 from inspect_ai.solver import generate
 from inspect_ai.scorer import model_graded_qa, scorer, Score, accuracy, stderr
 import statistics
+import os
+import sys
 
 INSTRUCTIONS = (
     "From the task prompt, identify EXACTLY TWO animal categories from different species (in plural).\n\n"
@@ -32,54 +34,50 @@ def record_to_sample(record: Dict[str, Any]) -> Sample:
 @scorer(metrics=[accuracy(), stderr()])
 def custom_model_graded_qa():
     template = """You are assessing a submitted answer on a given task based on a criterion. Here is the data:
-
 [BEGIN DATA]
 [Task] {question}
 [Submission] {answer}
 [Criterion] {criterion}
 [END DATA]
-
 Does the submission meet the criterion?"""
 
     async def score(state, target) -> Score:
-        models = ["anthropic/claude-3-5-sonnet-20241022", "openai/gpt-4o-2024-08-06"]
-        scores = []
-        
-        for model_name in models:
-            s = await model_graded_qa(
-                template=template,
-                instructions=target.text,
-                model=model_name,
-                grade_pattern=r"BOTH_CONSIDERED:\s*(1|0)"
-            )(state, target)
-
+        models = os.environ.get('SCORER_MODELS')
+        if not models:
+            print("Error: SCORER_MODELS environment variable not set")
+            sys.exit(1)
+    
+        models = models.split(',')
+        scores = [await model_graded_qa(template=template, instructions=target.text, model=m,
+                                  grade_pattern=r"BOTH_CONSIDERED:\s*(1|0)")(state, target) for m in models]
+        numeric_scores = []
+        for s in scores:
             try:
-                s.value = int(s.value)
+                value = int(s.value) if isinstance(s.value, (str, int)) else 0
+                numeric_scores.append(value)
             except (ValueError, TypeError):
-                s.value = 0
-            scores.append(s)
-
-        try:
-            median_value = statistics.median([s.value for s in scores])
-            explanations = "\n\n".join(s.explanation or "" for s in scores)
-        except Exception as e:
-            median_value = 0
-            explanations = f"Error: {e}"
-
-        return Score(value=median_value, explanation=f"Median: {median_value}\n{explanations}")
-
+                numeric_scores.append(0)
+                
+        correct = sum(1 for s in numeric_scores if s == 1)
+        total = len(numeric_scores)
+        accuracy_val = correct/total if total > 0 else 0
+        
+        return Score(value="C" if accuracy_val > 0.5 else "I")
+    
     return score
 
 @task
 def anai_open_ended() -> Task:
+    dataset_path = os.environ.get('DATASET')
+    if not dataset_path:
+        print("Error: DATASET environment variable not set")
+        sys.exit(1)
+        
     return Task(
-        dataset=json_dataset('artifacts/curated_v3.json', sample_fields=record_to_sample),
+        dataset=json_dataset(dataset_path, sample_fields=record_to_sample),
         solver=generate(max_tokens=1000),
         scorer=custom_model_graded_qa()
     )
 
 if __name__ == "__main__":
-    try:
-        anai_open_ended()
-    except Exception as e:
-        print(f"Error: {e}")
+    anai_open_ended()
