@@ -4,12 +4,6 @@ import sys
 import os
 import argparse
 
-def create_directories():
-    """Create necessary directories."""
-    directories = ['/content/eval', '/content/view', '/content/anai/logs']
-    for directory in directories:
-        os.makedirs(directory, exist_ok=True)
-
 def get_installed_version(package_name):
     """Check if the given package is installed and return its version if available."""
     try:
@@ -41,9 +35,6 @@ def install_packages():
             print(f"{package_name} is already installed")
 
 def main():
-    # Create necessary directories
-    create_directories()
-
     # Install required packages
     install_packages()
 
