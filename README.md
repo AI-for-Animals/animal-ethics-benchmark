@@ -15,27 +15,42 @@ personal_token = userdata.get('GITHUB_TOKEN')
 !git clone https://akanepajs:{personal_token}@github.com/ronakrm/anai.git
 ```
 
-2) Execute the following. By default runs only claude-3-haiku-20240307, adjust /content/anai/evals_v2.py for results from other models.
+2) Execute the following.
 
 ```
 from google.colab import userdata
 import os
 
-# Import API keys for accessing models
+# Set API keys
 os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
-os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
 os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
-os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
-os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
+# Uncomment and set other keys if necessary
+# os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
+# os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
+# os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
 
-# Set Ngrok authentication token for creating secure tunnels (used by inspect viewer)
+# Set parameters
+MODEL = "anthropic/claude-3-haiku-20240307"
+SCORER_MODELS = "anthropic/claude-3-5-sonnet-20241022,openai/gpt-4o-2024-08-06"
+DATASET = "/content/anai/artifacts/curated_v3.json"  # absolute path
+LIMIT = 3  # Change sample size here
+
+# Some of the available models (for reference):
+# anthropic/claude-3-haiku-20240307
+# anthropic/claude-3-5-sonnet-20241022  
+# openai/gpt-4o-mini-2024-07-18
+# openai/gpt-4o-2024-08-06
+# openai/o1-preview-2024-09-12
+# google/gemini-1.5-pro-002
+# together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
+# mistral/mistral-large-2407
+
+
+# Run evaluation directly with parameters visible as environment variables
+!python /content/anai/evals_v3.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"
+
+# Set up Ngrok for viewing
 os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
-
-# Run the main evaluation script
-!python /content/anai/evals_v2.py # Adjust this script to modify for which models to get results
-
-# Run the inspection viewer script to visualize results
-# This creates a web interface to view and analyze the evaluation results
 !python /content/anai/test/inspectview.py
 ```
 
