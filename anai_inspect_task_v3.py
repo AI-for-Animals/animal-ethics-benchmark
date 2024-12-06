@@ -3,9 +3,17 @@ from inspect_ai import task, Task
 from inspect_ai.dataset import json_dataset, Sample
 from inspect_ai.solver import generate
 from inspect_ai.scorer import model_graded_qa, scorer, Score, accuracy, stderr
-import statistics
 import os
 import sys
+import argparse
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Run the ANAI inspection task.")
+parser.add_argument('--model', type=str, required=True, help='Model to be evaluated')
+parser.add_argument('--scorer_models', type=str, required=True, help='Comma-separated list of models for scoring')
+parser.add_argument('--dataset', type=str, required=True, help='Path to the dataset')
+parser.add_argument('--limit', type=int, default=None, help='Limit the number of samples to evaluate')
+args = parser.parse_args()
 
 INSTRUCTIONS = (
     "From the task prompt, identify EXACTLY TWO animal categories from different species (in plural).\n\n"
@@ -42,14 +50,9 @@ def custom_model_graded_qa():
 Does the submission meet the criterion?"""
 
     async def score(state, target) -> Score:
-        models = os.environ.get('SCORER_MODELS')
-        if not models:
-            print("Error: SCORER_MODELS environment variable not set")
-            sys.exit(1)
-    
-        models = models.split(',')
+        models = args.scorer_models.split(',')
         scores = [await model_graded_qa(template=template, instructions=target.text, model=m,
-                                  grade_pattern=r"BOTH_CONSIDERED:\s*(1|0)")(state, target) for m in models]
+                                        grade_pattern=r"BOTH_CONSIDERED:\s*(1|0)")(state, target) for m in models]
         numeric_scores = []
         for s in scores:
             try:
@@ -57,27 +60,24 @@ Does the submission meet the criterion?"""
                 numeric_scores.append(value)
             except (ValueError, TypeError):
                 numeric_scores.append(0)
-                
+
         correct = sum(1 for s in numeric_scores if s == 1)
         total = len(numeric_scores)
-        accuracy_val = correct/total if total > 0 else 0
-        
+        accuracy_val = correct / total if total > 0 else 0
+
         return Score(value="C" if accuracy_val > 0.5 else "I")
-    
+
     return score
 
 @task
 def anai_open_ended() -> Task:
-    dataset_path = os.environ.get('DATASET')
-    if not dataset_path:
-        print("Error: DATASET environment variable not set")
-        sys.exit(1)
-        
     return Task(
-        dataset=json_dataset(dataset_path, sample_fields=record_to_sample),
+        dataset=json_dataset(args.dataset, sample_fields=record_to_sample, limit=args.limit),
         solver=generate(max_tokens=1000),
         scorer=custom_model_graded_qa()
     )
 
 if __name__ == "__main__":
-    anai_open_ended()
+    # Explicitly run the task
+    from inspect_ai import eval
+    eval('anai_open_ended')
