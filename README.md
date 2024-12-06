@@ -11,8 +11,15 @@ To get detailed results for multiple LLMs, prerequisites:
 # Get token from environment and use it
 from google.colab import userdata
 import os
+
+# Retrieve GitHub personal access token
 personal_token = userdata.get('GITHUB_TOKEN')
-!git clone https://akanepajs:{personal_token}@github.com/ronakrm/anai.git
+
+# Define the new GitHub repository URL
+repository_url = "https://{token}@github.com/AI-for-Animals/animal-ethics-benchmark.git".format(token=personal_token)
+
+# Clone the repository using the token for authentication into the "anai" folder
+!git clone "{repository_url}" anai
 ```
 
 2) Execute the following.
@@ -45,6 +52,8 @@ LIMIT = 3  # Change sample size here
 # together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
 # mistral/mistral-large-2407
 
+# Set model as an environment variable
+os.environ['INSPECT_EVAL_MODEL'] = MODEL
 
 # Run evaluation directly with parameters visible as environment variables
 !python /content/anai/evals_v3.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"
