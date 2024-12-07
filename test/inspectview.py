@@ -6,20 +6,23 @@ This script sets up and monitors an INSPECT evaluation interface with a public U
 
 import subprocess
 import sys
-import argparse
 import os
-import socket
 import time
+import socket
 import psutil
-from pyngrok import ngrok
+import argparse
 
-# Install required packages
+# Install required packages before proceeding
 def install_requirements():
     """Install necessary packages if not already available."""
     packages = ['pyngrok', 'flask', 'psutil']
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install'] + packages)
+    for package in packages:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
 install_requirements()
+
+# Import after installation
+from pyngrok import ngrok
 
 # Helper function to kill a process and its children
 def kill_process_and_children(proc_pid):
@@ -35,7 +38,6 @@ def kill_process_and_children(proc_pid):
 # Clean up processes by name or using a specific port
 def clean_up_processes(proc_names, port=None):
     """Clean up any existing processes by name or using a specific port."""
-    print("🧹 Cleaning up old processes...")
     for proc_name in proc_names:
         try:
             procs = subprocess.check_output(["pgrep", proc_name]).decode().split()
@@ -62,28 +64,9 @@ def wait_for_inspect_ready(port, timeout=120):
                 if sock.connect_ex(('127.0.0.1', port)) == 0:
                     print("\n✅ Inspect view is ready!")
                     return True
-        except Exception as e:
-            print(f"\nSocket error: {str(e)}")
+        except socket.error:
+            pass
         time.sleep(1)
-        print(f"\rWaiting for inspect view to initialize... {int(time.time() - start_time)}s", end="")
-    print("\n❌ Timeout waiting for inspect view to initialize")
-    return False
-
-# Wait for logs to be generated
-def wait_for_logs(log_dir, timeout=5):
-    """Wait briefly for the logs to be generated in the given directory."""
-    log_dir = os.path.abspath(log_dir)
-    print(f"🔍 Checking log directory: {log_dir}")
-
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        log_files = [f for f in os.listdir(log_dir) if f.endswith(".eval")]
-        if log_files:
-            print(f"✅ Logs detected: {log_files}")
-            return True
-        time.sleep(1)
-
-    print("❌ No log files detected, but proceeding assuming they will be generated.")
     return False
 
 # Clean start for the inspect session
@@ -95,23 +78,12 @@ def clean_start_with_inspect(authtoken, port=7575, log_level="info", log_dir="/c
 
         # Ensure the log directory exists
         log_dir = os.path.abspath(log_dir)
-        if not os.path.exists(log_dir):
-            print(f"⚠️ Log directory {log_dir} does not exist. Creating it now...")
-            os.makedirs(log_dir, exist_ok=True)
-
-        if not os.access(log_dir, os.R_OK):
-            print(f"Adjusting permissions for the log directory: {log_dir}")
-            os.chmod(log_dir, 0o755)
-
-        # Wait for logs to be generated before starting the inspect view
-        wait_for_logs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
 
         # Set ngrok authtoken
-        print("🔑 Setting up ngrok authtoken...")
         ngrok.set_auth_token(authtoken)
 
         # Start the inspect view with specified port
-        print(f"🔍 Starting inspect view on port {port} with logs from {log_dir}...")
         inspect_process = subprocess.Popen(
             [
                 "inspect", "view", "start",
@@ -125,31 +97,16 @@ def clean_start_with_inspect(authtoken, port=7575, log_level="info", log_dir="/c
             text=True
         )
 
-        # Check if the process starts properly
-        if inspect_process.poll() is not None:
-            stderr = inspect_process.stderr.read()
-            stdout = inspect_process.stdout.read()
-            print(f"❌ Inspect process failed immediately!\nSTDERR: {stderr}\nSTDOUT: {stdout}")
-            raise Exception("Inspect failed to start")
-
         # Wait for inspect view to be ready
-        if not wait_for_inspect_ready(port, timeout=120):
-            stderr = inspect_process.stderr.read()
-            stdout = inspect_process.stdout.read()
-            print(f"\nProcess STDERR: {stderr}\nProcess STDOUT: {stdout}")
-            raise Exception("Inspect failed to initialize within timeout period")
+        if not wait_for_inspect_ready(port):
+            kill_process_and_children(inspect_process.pid)
+            return None
 
         # Start ngrok tunnel
-        print("🚀 Starting ngrok tunnel...")
         tunnel = ngrok.connect(port)
 
         print(f"\n✅ Setup complete!\n📡 Public URL: {tunnel.public_url}\n")
-        print("1. The inspect interface is now ready to use")
-        print("2. Keep this cell running to maintain the tunnel")
-        print("3. If you need to stop, use the interrupt kernel button (■)")
-        print(f"4. Inspect view is running on local port {port}")
-        print(f"5. Reading logs from: {log_dir}")
-
+        print(f"Inspect view is running on local port {port}")
         return {
             'url': tunnel.public_url,
             'process': inspect_process,
@@ -158,9 +115,7 @@ def clean_start_with_inspect(authtoken, port=7575, log_level="info", log_dir="/c
         }
 
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        if 'inspect_process' in locals():
-            kill_process_and_children(inspect_process.pid)
+        print(f"❌ Error during setup: {str(e)}")
         return None
 
 # Monitor the inspect session
@@ -180,7 +135,7 @@ def monitor_inspect_session(session_info):
             hours, remainder = divmod(elapsed, 3600)
             minutes, seconds = divmod(remainder, 60)
 
-            print(f"\rRunning for: {hours:02d}:{minutes:02d}:{seconds:02d} | URL: {session_info['url']} | Logs: {session_info['log_dir']} (Ctrl+C to stop)", end="")
+            print(f"\rRunning for: {hours:02d}:{minutes:02d}:{seconds:02d} | URL: {session_info['url']} (Ctrl+C to stop)", end="")
             time.sleep(1)
 
     except KeyboardInterrupt:
