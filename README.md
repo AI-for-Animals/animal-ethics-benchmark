@@ -40,7 +40,7 @@ os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
 MODEL = "anthropic/claude-3-haiku-20240307"
 SCORER_MODELS = "anthropic/claude-3-5-sonnet-20241022,openai/gpt-4o-2024-08-06"
 DATASET = "/content/anai/artifacts/curated_v3.json"  # absolute path
-LIMIT = 5  # Change sample size here
+LIMIT = 30  # Change sample size here
 
 # Some of the available models (for reference):
 # anthropic/claude-3-haiku-20240307
