@@ -31,24 +31,38 @@ import os
 # Set API keys
 os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
 os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
+os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
+
 # Uncomment and set other keys if necessary
-# os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
 # os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
 # os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
 
 # Set parameters
-MODEL = "anthropic/claude-3-haiku-20240307"
-SCORER_MODELS = "anthropic/claude-3-5-sonnet-20241022,openai/gpt-4o-2024-08-06"
+MODEL = "anthropic/claude-3-5-sonnet-20241022"
+SCORER_MODELS = "openai/gpt-4o-2024-08-06,google/gemini-2.0-flash-exp"
 DATASET = "/content/anai/artifacts/curated_v3.json"  # absolute path
-LIMIT = 30  # Change sample size here
+LIMIT = 300  # Change sample size here
 
 # Some of the available models (for reference):
-# anthropic/claude-3-haiku-20240307
+
+# Anthropic 
+# https://docs.anthropic.com/en/docs/about-claude/models
 # anthropic/claude-3-5-sonnet-20241022  
+# anthropic/claude-3-5-haiku-20241022
+
+# OpenAI
+# https://platform.openai.com/docs/models
+# openai/gpt-4o-2024-11-20	
 # openai/gpt-4o-mini-2024-07-18
-# openai/gpt-4o-2024-08-06
-# openai/o1-preview-2024-09-12
+# openai/o1-2024-12-17
+# openai/o1-mini-2024-09-12
+
+# Google
+# https://ai.google.dev/gemini-api/docs/models/gemini 
+# google/gemini-2.0-flash-exp
 # google/gemini-1.5-pro-002
+
+# Other 
 # together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
 # mistral/mistral-large-2407
 
