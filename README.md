@@ -73,7 +73,7 @@ LIMIT = 100  # Change sample size here
 os.environ['INSPECT_EVAL_MODEL'] = MODEL
 
 # Run evaluation directly with parameters visible as environment variables
-!python /content/anai/evals_v3.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"
+!python /content/anai/evals_v4.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"
 
 # Set up Ngrok for viewing
 os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
