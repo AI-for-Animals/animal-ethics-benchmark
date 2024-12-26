@@ -38,10 +38,10 @@ os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
 # os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
 
 # Set parameters
-MODEL = "anthropic/claude-3-5-sonnet-20241022"
-SCORER_MODELS = "openai/gpt-4o-2024-08-06,google/gemini-2.0-flash-exp"
-DATASET = "/content/anai/artifacts/curated_v3.json"  # absolute path
-LIMIT = 300  # Change sample size here
+MODEL = "google/gemini-2.0-flash-exp"
+SCORER_MODELS = "anthropic/claude-3-5-sonnet-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-2024-08-06"
+DATASET = "/content/anai/artifacts/reddit_curated.json"  # absolute path
+LIMIT = 100  # Change sample size here
 
 # Some of the available models (for reference):
 
@@ -52,14 +52,17 @@ LIMIT = 300  # Change sample size here
 
 # OpenAI
 # https://platform.openai.com/docs/models
-# openai/gpt-4o-2024-11-20	
+# openai/gpt-4o-2024-08-06	
 # openai/gpt-4o-mini-2024-07-18
-# openai/o1-2024-12-17
-# openai/o1-mini-2024-09-12
+# openai/o1-2024-12-17 (limited API access)
+# openai/o1-mini-2024-09-12 (limited API access)
 
 # Google
 # https://ai.google.dev/gemini-api/docs/models/gemini 
+# google/gemini-2.0-flash-thinking-exp-1219
+# google/gemini-2.0-flash-exp-1121
 # google/gemini-2.0-flash-exp
+# google/gemini-exp-1206
 # google/gemini-1.5-pro-002
 
 # Other 
