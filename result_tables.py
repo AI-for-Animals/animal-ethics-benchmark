@@ -13,6 +13,19 @@ import sympy
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
+# Define input numbers with descriptive keys
+EVALUATION_INPUTS = {
+    "OpenAI judged by Anthropic": 1.87,
+    "OpenAI judged by Google": 1.12,
+    "OpenAI judged by OpenAI": 2.69,
+    "Anthropic judged by Anthropic": 2.01,
+    "Anthropic judged by Google": 1.07,
+    "Anthropic judged by OpenAI": 2.72,
+    "Google judged by Anthropic": 1.74,
+    "Google judged by Google": 1.05,
+    "Google judged by OpenAI": 2.5,
+}
+
 @dataclass
 class EvaluationSystem:
     """Represents the AI evaluation system's input data and results"""
@@ -44,24 +57,25 @@ def create_system() -> EvaluationSystem:
         'GSB': sympy.Symbol('GSB', real=True),  # Google Self Bias
     }
 
-    # Define equations
+    # Define equations dynamically based on input data
+    eq = EVALUATION_INPUTS
     equations = [
-        sympy.Eq(symbols['AJ'] + symbols['OC'], 1.1),           # OpenAI-Anthropic
-        sympy.Eq(symbols['GJ'] + symbols['OC'], 1.17),          # OpenAI-Google
-        sympy.Eq(symbols['OJ'] + symbols['OC'] + symbols['OSB'], 1.38),   # OpenAI-OpenAI
-        sympy.Eq(symbols['AJ'] + symbols['AC'] + symbols['ASB'], 1.04),   # Anthropic-Anthropic
-        sympy.Eq(symbols['GJ'] + symbols['AC'], 1.15),          # Anthropic-Google
-        sympy.Eq(symbols['OJ'] + symbols['AC'], 1.36),          # Anthropic-OpenAI
-        sympy.Eq(symbols['AJ'] + symbols['GC'], 1.08),          # Google-Anthropic
-        sympy.Eq(symbols['GJ'] + symbols['GC'] + symbols['GSB'], 1.16),   # Google-Google
-        sympy.Eq(symbols['OJ'] + symbols['GC'], 1.30),          # Google-OpenAI
+        sympy.Eq(symbols['AJ'] + symbols['OC'], eq["OpenAI judged by Anthropic"]),
+        sympy.Eq(symbols['GJ'] + symbols['OC'], eq["OpenAI judged by Google"]),
+        sympy.Eq(symbols['OJ'] + symbols['OC'] + symbols['OSB'], eq["OpenAI judged by OpenAI"]),
+        sympy.Eq(symbols['AJ'] + symbols['AC'] + symbols['ASB'], eq["Anthropic judged by Anthropic"]),
+        sympy.Eq(symbols['GJ'] + symbols['AC'], eq["Anthropic judged by Google"]),
+        sympy.Eq(symbols['OJ'] + symbols['AC'], eq["Anthropic judged by OpenAI"]),
+        sympy.Eq(symbols['AJ'] + symbols['GC'], eq["Google judged by Anthropic"]),
+        sympy.Eq(symbols['GJ'] + symbols['GC'] + symbols['GSB'], eq["Google judged by Google"]),
+        sympy.Eq(symbols['OJ'] + symbols['GC'], eq["Google judged by OpenAI"]),
     ]
 
-    # Define results matrix
+    # Generate results matrix dynamically
     results_matrix = [
-        [1.38, 1.1, 1.17],   # OpenAI evaluating [OpenAI, Anthropic, Google]
-        [1.36, 1.04, 1.15],  # Anthropic evaluating [OpenAI, Anthropic, Google]
-        [1.30, 1.08, 1.16],  # Google evaluating [OpenAI, Anthropic, Google]
+        [eq["OpenAI judged by OpenAI"], eq["OpenAI judged by Anthropic"], eq["OpenAI judged by Google"]],
+        [eq["Anthropic judged by OpenAI"], eq["Anthropic judged by Anthropic"], eq["Anthropic judged by Google"]],
+        [eq["Google judged by OpenAI"], eq["Google judged by Anthropic"], eq["Google judged by Google"]],
     ]
 
     return EvaluationSystem(results_matrix, equations, symbols)
@@ -69,17 +83,17 @@ def create_system() -> EvaluationSystem:
 def objective_function(x: np.ndarray, equations: List[sympy.Eq]) -> np.ndarray:
     """Calculate residuals for the least squares optimization"""
     OJ, AJ, GJ, OC, AC, GC, OSB, ASB, GSB = x
-    
+
     return np.array([
-        AJ + OC - 1.1,           # eq1
-        GJ + OC - 1.17,          # eq2
-        OJ + OC + OSB - 1.38,    # eq3
-        AJ + AC + ASB - 1.04,    # eq4
-        GJ + AC - 1.15,          # eq5
-        OJ + AC - 1.36,          # eq6
-        AJ + GC - 1.08,          # eq7
-        GJ + GC + GSB - 1.16,    # eq8
-        OJ + GC - 1.30,          # eq9
+        AJ + OC - EVALUATION_INPUTS["OpenAI judged by Anthropic"],           # eq1
+        GJ + OC - EVALUATION_INPUTS["OpenAI judged by Google"],             # eq2
+        OJ + OC + OSB - EVALUATION_INPUTS["OpenAI judged by OpenAI"],       # eq3
+        AJ + AC + ASB - EVALUATION_INPUTS["Anthropic judged by Anthropic"], # eq4
+        GJ + AC - EVALUATION_INPUTS["Anthropic judged by Google"],          # eq5
+        OJ + AC - EVALUATION_INPUTS["Anthropic judged by OpenAI"],          # eq6
+        AJ + GC - EVALUATION_INPUTS["Google judged by Anthropic"],          # eq7
+        GJ + GC + GSB - EVALUATION_INPUTS["Google judged by Google"],       # eq8
+        OJ + GC - EVALUATION_INPUTS["Google judged by OpenAI"],             # eq9
     ])
 
 def solve_system(system: EvaluationSystem) -> Solution:
@@ -87,27 +101,29 @@ def solve_system(system: EvaluationSystem) -> Solution:
     # Initial solution
     x0 = np.zeros(9)
     result = least_squares(objective_function, x0, args=(system.equations,))
-    
-    # Extract raw values
+
+    # Extract raw values from solution
     solution_values = result.x
     residuals = result.fun
     rms_error = np.sqrt(np.mean(np.square(residuals)))
-    
-    # Extract scores
-    AC, GC, OC = solution_values[4], solution_values[5], solution_values[3]  # Chatbot scores
-    AJ, GJ, OJ = solution_values[1], solution_values[2], solution_values[0]  # Judge scores
-    ASB, GSB, OSB = solution_values[7], solution_values[8], solution_values[6]  # Self bias
-    
+
+    # Ensure correct mapping
+    OJ, AJ, GJ = solution_values[0], solution_values[1], solution_values[2]  # Judge scores
+    OC, AC, GC = solution_values[3], solution_values[4], solution_values[5]  # Chatbot scores
+    OSB, ASB, GSB = solution_values[6], solution_values[7], solution_values[8]  # Self biases
+
     # Normalize judge scores around median
-    judges = [AJ, GJ, OJ]
-    median_judge = sorted(judges)[1]
-    
-    # Adjust scores
+    judges = [OJ, AJ, GJ]
+    median_judge = np.median(judges)
     normalized_judges = [j - median_judge for j in judges]
-    adjusted_chatbots = [AC + median_judge, GC + median_judge, OC + median_judge]
-    self_biases = [ASB, GSB, OSB]
-    
+
+    # Adjust chatbot scores for context
+    adjusted_chatbots = [OC + median_judge, AC + median_judge, GC + median_judge]
+    self_biases = [OSB, ASB, GSB]
+
     return Solution(adjusted_chatbots, normalized_judges, self_biases, residuals, rms_error)
+
+
 
 def print_results(system: EvaluationSystem, solution: Solution):
     """Print all results in a formatted way"""
@@ -120,26 +136,30 @@ def print_results(system: EvaluationSystem, solution: Solution):
 
     # 2. Print input matrix
     print("\n===== Input Matrix =====")
+    print("Rows represent chatbots being evaluated, columns represent judges.")
     labels = ["OpenAI", "Anthropic", "Google"]
-    print("           |", " | ".join(f"{c:10s}" for c in labels))
-    print("-" * 50)
+    print(f"{'Chatbot':<12} | {'OpenAI':<12} | {'Anthropic':<12} | {'Google':<12}")
+    print("-" * 58)
     for i, label in enumerate(labels):
         values = system.results_matrix[i]
-        print(f"{label:10s} |", " | ".join(f"{x:10.2f}" for x in values))
+        print(f"{label:<12} | " + " | ".join(f"{x:<12.2f}" for x in values))
 
-    # 3. Print normalized solution
+    # 3. Print normalized solution with additional percentage column
     print("\n===== Normalized Solution =====")
-    print("Chatbot Scores (Anthropic, Google, OpenAI):")
-    for i, score in enumerate(solution.chatbot_scores):
-        print(f"  {labels[i]}: {score:.4f}")
-    
-    print("\nJudge Scores (normalized, median = 0):")
-    for i, score in enumerate(solution.judge_scores):
-        print(f"  {labels[i]}: {score:.4f}")
-    
-    print("\nSelf Bias:")
-    for i, bias in enumerate(solution.self_bias):
-        print(f"  {labels[i]}: {bias:.4f}")
+    print("Rows represent chatbots and their evaluation metrics.")
+    header = f"{'Chatbot':<12} | {'Chatbot Score (1-5)':<22} | {'Chatbot Score (%)':<20} | {'Judge Bias ':<15} | {'Self Bias':<12}"
+    print(header)
+    print("-" * len(header))
+    for i, label in enumerate(labels):
+        chatbot_score = solution.chatbot_scores[i]
+        chatbot_score_percent = (5 - chatbot_score) / 4 * 100
+        print(
+            f"{label:<12} | {chatbot_score:<22.4f} | {chatbot_score_percent:<20.2f} | {solution.judge_scores[i]:<15.4f} | {solution.self_bias[i]:<12.4f}"
+        )
+
+    print("\nNote: Positive Judge Bias indicates harsher judgments (higher scores).")
+
+
 
 def main():
     """Main function to run the analysis"""
