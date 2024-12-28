@@ -44,6 +44,8 @@ def main():
     parser.add_argument('--scorer_models', type=str, required=True, help='Comma-separated list of models for scoring')
     parser.add_argument('--dataset', type=str, required=True, help='Path to the dataset')
     parser.add_argument('--limit', type=int, default=None, help='Limit the number of samples to evaluate')
+    parser.add_argument('--temperature', type=float, default=None, help='temperature')
+    parser.add_argument('--seed', type=int, default=None, help='seed')
     args = parser.parse_args()
 
     # Run the anai_inspect_task_v3.py script to register and execute the task
