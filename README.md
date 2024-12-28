@@ -41,7 +41,9 @@ os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
 MODEL = "google/gemini-2.0-flash-exp"
 SCORER_MODELS = "anthropic/claude-3-5-sonnet-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-2024-08-06"
 DATASET = "/content/anai/artifacts/reddit_curated.json"  # absolute path
-LIMIT = 100  # Change sample size here
+LIMIT = 3  # Change sample size here
+TEMPERATURE = 0.5
+SEED = 42
 
 # Some of the available models (for reference):
 
@@ -73,9 +75,10 @@ LIMIT = 100  # Change sample size here
 os.environ['INSPECT_EVAL_MODEL'] = MODEL
 
 # Run evaluation directly with parameters visible as environment variables
-!python /content/anai/evals_v4.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"
+!python /content/anai/evals_v4.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"  --temperature "$TEMPERATURE" --seed "$SEED"
 
 # Set up Ngrok for viewing
+
 os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
 !python /content/anai/test/inspectview.py
 ```
