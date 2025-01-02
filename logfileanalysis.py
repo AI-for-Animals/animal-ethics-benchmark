@@ -1,192 +1,142 @@
 import os
 import csv
 import numpy as np
-import krippendorff
+import krippendorff 
 import sys
+import re
 from datetime import datetime
+from inspect_ai.log import list_eval_logs, read_eval_log
 
-from inspect_ai.log import (
-    list_eval_logs,
-    read_eval_log,
-    resolve_sample_attachments,  # We might also call this per-sample if needed
-)
+DEFAULT_SCORE = 0
 
-def parse_timestamp_from_filename(path: str) -> str:
-    bn = os.path.basename(path)
-    prefix = bn.split("_anai-open-ended_")[0]
-    return prefix
+# Rest of the code remains the same
 
 def get_latest_log_file(log_dir="./logs"):
-    logs = list_eval_logs(log_dir, recursive=False)
-    if not logs:
-        return None
+   logs = list_eval_logs(log_dir, recursive=False)
+   return sorted(logs, key=lambda x: os.path.basename(x.name))[-1] if logs else None
 
-    def sort_key(info):
-        bn = os.path.basename(info.name)
-        prefix = bn.split("_anai-open-ended_")[0]
-        dt_str = prefix.split('+')[0]
-        try:
-            return datetime.strptime(dt_str, "%Y-%m-%dT%H-%M-%S")
-        except:
-            return datetime.min
+def extract_risk_category(text):
+   lines = text.strip().split('\n')
+   first_line = lines[0] if lines else ''
+   match = re.match(r'^\[([A-E])\]', first_line)
+   return match.group(1) if match else None
 
-    sorted_logs = sorted(logs, key=sort_key)
-    return sorted_logs[-1]
-
+def compute_alpha_safely(data, level):
+   try:
+       return krippendorff.alpha(reliability_data=data, level_of_measurement=level)
+   except ValueError as e:
+       print(f"Warning: Could not compute alpha for {level}: {e}")
+       print(f"Unique values in data: {np.unique(data[~np.isnan(data)])}")
+       return float('nan')
 
 def extract_scores_and_compute_alpha(log_file=None, log_dir="./logs"):
-    """
-    Reads the given (or latest) .eval file, with attachments resolved so that
-    large blocks of content (answer text, scorer text) become visible.
+   if log_file:
+       log_file_path = log_file
+   else:
+       info = get_latest_log_file(log_dir)
+       if not info:
+           print(f"No logs found in {log_dir}")
+           return
+       log_file_path = info.name
 
-    Then:
-      - Extracts user question (sample.input)
-      - Extracts final assistant answer from sample.messages
-      - Extracts each scoring model’s textual assessment from sample.events
-      - Excludes 'avg' and 'error_count' from scoring models
-      - Writes to CSV -> (sample_id, question, answer, [model]_assessment..., [model]_score...)
-      - Computes Krippendorff's alpha over the numeric scores.
-    """
-    if log_file:
-        log_file_path = log_file
-        print(f"Reading specified log file: {log_file_path}")
-    else:
-        info = get_latest_log_file(log_dir)
-        if not info:
-            print(f"No logs found in {log_dir}. Nothing to extract.")
-            return
-        log_file_path = info.name
-        print(f"Reading newest log file in {log_dir}: {log_file_path}")
+   log = read_eval_log(log_file_path, resolve_attachments=True)
+   scoring_models = [s.name for s in (log.results.scores or [])
+                    if s.name not in ("avg", "error_count")]
 
-    # ----------------------------------------------------------------
-    # 1) Read the log *with attachments resolved*
-    # ----------------------------------------------------------------
-    log = read_eval_log(log_file_path, resolve_attachments=True)
-    if log.status != "success":
-        print(f"Warning: log has status={log.status} (may be incomplete).")
+   rows = []
+   alpha_matrix_scores = []
+   alpha_matrix_categories = []
+   category_mapping = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5}
 
-    heading = log.eval.model
+   for sample in log.samples or []:
+       answer = next((msg.content for msg in (sample.messages or [])
+           if getattr(msg, "source", None) == "generate" and 
+           getattr(msg, "role", "") == "assistant"), "")
 
-    # ----------------------------------------------------------------
-    # 2) Identify real scoring models, excluding "avg"/"error_count"
-    # ----------------------------------------------------------------
-    all_scoring_models = []
-    if log.results and log.results.scores:
-        all_scoring_models = [s.name for s in log.results.scores]
-    scoring_models = [m for m in all_scoring_models if m not in ("avg","error_count")]
+       scorer_data = {m: {"text": "", "category": None} for m in scoring_models}
+       for ev in (sample.events or []):
+           if ev.event == "model" and ev.model in scoring_models:
+               try:
+                   choices = ev.output.choices[0].message.content
+                   text = choices[0].text if isinstance(choices, list) else choices
+                   category = extract_risk_category(text.strip())
+                   scorer_data[ev.model] = {
+                       "text": text.strip(),
+                       "category": category_mapping.get(category) if category else None
+                   }
+               except (AttributeError, IndexError):
+                   continue
 
-    rows = []
-    alpha_matrix = []
+       scores = sample.scores.get("final_digit_model_graded_qa", {})
+       if scores and hasattr(scores, 'value'):
+           scores.value = {k: int(str(v).strip('[]')) if isinstance(v, (str, int)) and 
+                         str(v).strip('[]') in {'-1', '0', '1'} else DEFAULT_SCORE 
+                         for k, v in scores.value.items()}
+       row_scores = [scores.value.get(m, DEFAULT_SCORE) if scores else DEFAULT_SCORE for m in scoring_models]
+       row_categories = [scorer_data[m]["category"] for m in scoring_models]
 
-    # ----------------------------------------------------------------
-    # 3) For each sample, gather question, answer, assessments, numeric scores
-    # ----------------------------------------------------------------
-    for sample in (log.samples or []):
-        # If needed, we can also do:
-        # sample = resolve_sample_attachments(sample)
+       row = [sample.id, sample.input or "", answer]
+       row.extend(scorer_data[m]["text"] for m in scoring_models)
+       row.extend(next((k for k, v in category_mapping.items() if v == cat), None) 
+                 for cat in row_categories)
+       row.extend(row_scores)
 
-        sample_id = sample.id
-        question_text = sample.input or ""
+       rows.append(row)
+       alpha_matrix_scores.append(row_scores)
+       alpha_matrix_categories.append(row_categories)
 
-        # A) Extract final assistant "answer" from sample.messages
-        answer_content = ""
-        for msg in (sample.messages or []):
-            if getattr(msg, "source", None) == "generate" and getattr(msg, "role", "") == "assistant":
-                answer_content = msg.content
-                break
+   bn = os.path.basename(log_file_path)
+   timestamp = bn.split("_anai-open-ended_")[0]
+   output_csv = f"./results_{timestamp}.csv"
 
-        # B) Extract textual assessments for each scorer from sample.events 
-        scorer_contents = {model: "" for model in scoring_models}
-        for ev in (sample.events or []):
-            if ev.event == "model" and ev.model in scorer_contents:
-                try:
-                    choices = ev.output.choices[0].message.content
-                    # Handle anthropic/claude style responses
-                    if isinstance(choices, list):
-                        content = choices[0].text
-                    else:
-                        content = choices
-                    scorer_contents[ev.model] = content.strip()
-                except (AttributeError, IndexError):
-                    continue
+   headers = (["sample_id", "question", "answer"] + 
+             [f"{m}_assessment" for m in scoring_models] +
+             [f"{m}_category" for m in scoring_models] +
+             [f"{m}_score" for m in scoring_models])
 
+   with open(output_csv, "w", newline="", encoding="utf-8") as f:
+       writer = csv.writer(f)
+       writer.writerow([log.eval.model] + [""]*(len(headers)-1))
+       writer.writerow(headers)
+       writer.writerows(rows)
 
-        # C) Numeric scores from final_digit_model_graded_qa
-        row_scores = []
-        final_scores = sample.scores.get("final_digit_model_graded_qa", None)
-        if final_scores and final_scores.value:
-            row_scores = [final_scores.value.get(m, None) for m in scoring_models]
-        else:
-            row_scores = [None]*len(scoring_models)
+   arr_scores = np.array(alpha_matrix_scores, dtype=float).T
+   arr_categories = np.array(alpha_matrix_categories, dtype=float).T
 
-        # D) Build row: ID, question, answer, each model’s text, each model’s numeric score
-        row = [sample_id, question_text, answer_content]
-        for m in scoring_models:
-            row.append(scorer_contents[m])
-        row.extend(row_scores)
+   alpha_scores = compute_alpha_safely(arr_scores, "interval")
+   alpha_categories = compute_alpha_safely(arr_categories, "ordinal")
 
-        rows.append(row)
-        alpha_matrix.append(row_scores)
-
-    # ----------------------------------------------------------------
-    # 4) Write CSV
-    # ----------------------------------------------------------------
-    timestamp_str = parse_timestamp_from_filename(log_file_path)
-    output_csv = f"./results_{timestamp_str}.csv"
-
-    headers = ["sample_id", "question", "answer"]
-    headers.extend([f"{m}_assessment" for m in scoring_models])
-    headers.extend([f"{m}_score" for m in scoring_models])
-
-    with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([heading] + [""]*(len(headers)-1))  # heading row
-        writer.writerow(headers)
-        for row in rows:
-            writer.writerow(row)
-
-    print(f"Results saved to {output_csv}")
-
-    # ----------------------------------------------------------------
-    # 5) Compute Krippendorff's alpha
-    # ----------------------------------------------------------------
-    arr = np.array(alpha_matrix, dtype=float).T
-    arr = np.where(np.isnan(arr), np.nan, arr)
-
-    alpha_val = krippendorff.alpha(reliability_data=arr, level_of_measurement="interval")
-    print(f"\nKrippendorff’s alpha (interval): {alpha_val:.3f}")
-
-    # Show summary
-    print(f"Number of samples: {len(rows)}")
-    for i, model_name in enumerate(scoring_models):
-        col = arr[i, :]
-        mean_val = np.nanmean(col) if col.size > 0 else float('nan')
-        print(f"{model_name}: average={mean_val:.3f}")
-
+   print(f"Results saved to {output_csv}")
+   print(f"\nKrippendorff's alpha:")
+   print(f"  Scores: {alpha_scores:.3f}")
+   print(f"  Categories: {alpha_categories:.3f}")
+   
+   print(f"\nNumber of samples: {len(rows)}")
+   for i, model_name in enumerate(scoring_models):
+       scores = arr_scores[i, :]
+       categories = arr_categories[i, :]
+       print(f"{model_name}:")
+       print(f"  Average score: {np.mean([s for s in scores if not np.isnan(s)]):.3f}")
+       orig_categories = [next((k for k, v in category_mapping.items() if v == int(cat)), None) 
+                        for cat in categories if not np.isnan(cat)]
+       category_counts = np.unique(orig_categories, return_counts=True)
+       print(f"  Categories: {dict(zip(category_counts[0], category_counts[1]))}")
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    log_file = None
-    log_dir = "./logs"
-    
-    i = 0
-    while i < len(args):
-        if args[i] == "--log-file":
-            if i + 1 < len(args):
-                log_file = args[i + 1]
-                i += 2
-            else:
-                print("Error: --log-file requires a path argument")
-                sys.exit(1)
-        elif args[i] == "--log-dir":
-            if i + 1 < len(args):
-                log_dir = args[i + 1]
-                i += 2
-            else:
-                print("Error: --log-dir requires a path argument")
-                sys.exit(1)
-        else:
-            print(f"Unknown argument: {args[i]}")
-            sys.exit(1)
-    
-    extract_scores_and_compute_alpha(log_file=log_file, log_dir=log_dir)
+   args = sys.argv[1:]
+   log_file = None
+   log_dir = "./logs"
+   
+   i = 0
+   while i < len(args):
+       if args[i] == "--log-file" and i + 1 < len(args):
+           log_file = args[i + 1]
+           i += 2
+       elif args[i] == "--log-dir" and i + 1 < len(args):
+           log_dir = args[i + 1]
+           i += 2
+       else:
+           print(f"Error: Invalid arguments")
+           sys.exit(1)
+   
+   extract_scores_and_compute_alpha(log_file=log_file, log_dir=log_dir)
