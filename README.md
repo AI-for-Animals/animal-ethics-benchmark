@@ -39,7 +39,7 @@ os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
 
 # Set parameters
 MODEL = "google/gemini-2.0-flash-exp"
-SCORER_MODELS = "anthropic/claude-3-5-sonnet-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-2024-08-06"
+SCORER_MODELS = "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-mini-2024-07-18"
 DATASET = "/content/anai/artifacts/reddit_curated.json"  # absolute path
 LIMIT = 3  # Change sample size here
 TEMPERATURE = 0.5
@@ -47,19 +47,19 @@ SEED = 42
 
 # Some of the available models (for reference):
 
-# Anthropic 
+# Anthropic: 
 # https://docs.anthropic.com/en/docs/about-claude/models
 # anthropic/claude-3-5-sonnet-20241022  
 # anthropic/claude-3-5-haiku-20241022
 
-# OpenAI
+# OpenAI:
 # https://platform.openai.com/docs/models
 # openai/gpt-4o-2024-08-06	
 # openai/gpt-4o-mini-2024-07-18
 # openai/o1-2024-12-17 (limited API access)
 # openai/o1-mini-2024-09-12 (limited API access)
 
-# Google
+# Google:
 # https://ai.google.dev/gemini-api/docs/models/gemini 
 # google/gemini-2.0-flash-thinking-exp-1219
 # google/gemini-2.0-flash-exp-1121
@@ -70,12 +70,30 @@ SEED = 42
 # Other 
 # together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
 # mistral/mistral-large-2407
+# See more https://inspect.ai-safety-institute.org.uk/models.html
+
+# Vertex:
+# e.g. vertex/gemini-2.0-flash-exp
+# Does not need API but needs setup & login 
+# OpenAI models currently not supported, fees for Anthropic 
+# See https://cloud.google.com/vertex-ai/docs for details
+ 
+
 
 # Set model as an environment variable
 os.environ['INSPECT_EVAL_MODEL'] = MODEL
 
 # Run evaluation directly with parameters visible as environment variables
-!python /content/anai/evals_v4.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"  --temperature "$TEMPERATURE" --seed "$SEED"
+!python /content/anai/evals_v5.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"  --temperature "$TEMPERATURE" --seed "$SEED"
+
+# To analyze the latest log file in the default logs directory
+!python /content/anai/logfileanalysis.py
+
+# To analyze a specific log file
+# !python /content/anai/logfileanalysis.py --log-file "/content/logs/2025-01-02T10-42-54+00-00_anai-open-ended_dyC4PxFiSMBu5wRuWTTRNM.eval"
+
+# To analyze the latest log file in a different directory
+#!python /content/anai/logfileanalysis.py --log-dir "/content/different_logs"
 
 # Set up Ngrok for viewing
 
