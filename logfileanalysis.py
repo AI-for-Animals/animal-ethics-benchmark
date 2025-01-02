@@ -1,80 +1,192 @@
-import json
-import pandas as pd
+import os
+import csv
+import numpy as np
+import krippendorff
+import sys
+from datetime import datetime
 
-with open('/content/logs/2024-11-01T13-56-39+00-00_anai_YYqGDwnonJwmYjxURczeeL.json', 'r') as f: # PUT THE LOG FILE PATH HERE
-    document_content = f.read()
+from inspect_ai.log import (
+    list_eval_logs,
+    read_eval_log,
+    resolve_sample_attachments,  # We might also call this per-sample if needed
+)
 
-def analyze_logs(data):
-    print("Analyzing log data...")
+def parse_timestamp_from_filename(path: str) -> str:
+    bn = os.path.basename(path)
+    prefix = bn.split("_anai-open-ended_")[0]
+    return prefix
 
-    all_results = []
-
-    # Extract results from reductions section which contains the scoring data
-    if 'reductions' in data:
-        for reduction in data['reductions']:
-            if reduction['scorer'] == 'choice':
-                for sample in reduction['samples']:
-                    result = {
-                        'sample_id': sample.get('sample_id'),
-                        'answer': sample.get('answer'),
-                        'value': sample.get('value'),
-                        'explanation': sample.get('explanation')
-                    }
-                    all_results.append(result)
-
-    if not all_results:
-        print("No results found in log data")
+def get_latest_log_file(log_dir="./logs"):
+    logs = list_eval_logs(log_dir, recursive=False)
+    if not logs:
         return None
 
-    print(f"\nProcessed {len(all_results)} results")
+    def sort_key(info):
+        bn = os.path.basename(info.name)
+        prefix = bn.split("_anai-open-ended_")[0]
+        dt_str = prefix.split('+')[0]
+        try:
+            return datetime.strptime(dt_str, "%Y-%m-%dT%H-%M-%S")
+        except:
+            return datetime.min
 
-    # Create DataFrame
-    df = pd.DataFrame(all_results)
+    sorted_logs = sorted(logs, key=sort_key)
+    return sorted_logs[-1]
 
-    print("\n=== Evaluation Summary ===")
-    print(f"Total responses: {len(df)}")
-    if not df.empty:
-        print("\nAnswers distribution:")
-        print(df['answer'].value_counts())
 
-        correct_responses = df[df['value'] == 'C'].shape[0]
-        incorrect_responses = df[df['value'] == 'I'].shape[0]
-        print(f"\nCorrect responses: {correct_responses}")
-        print(f"Incorrect responses: {incorrect_responses}")
-        print(f"Accuracy: {(correct_responses / len(df)) * 100:.2f}%")
+def extract_scores_and_compute_alpha(log_file=None, log_dir="./logs"):
+    """
+    Reads the given (or latest) .eval file, with attachments resolved so that
+    large blocks of content (answer text, scorer text) become visible.
 
-        # Additional metrics from the main results section
-        if 'results' in data and 'scores' in data['results']:
-            accuracy = data['results']['scores'][0].get('metrics', {}).get(
-                'accuracy', {}).get('value')
-            if accuracy:
-                print(f"Overall accuracy from results: {accuracy * 100:.2f}%")
+    Then:
+      - Extracts user question (sample.input)
+      - Extracts final assistant answer from sample.messages
+      - Extracts each scoring model’s textual assessment from sample.events
+      - Excludes 'avg' and 'error_count' from scoring models
+      - Writes to CSV -> (sample_id, question, answer, [model]_assessment..., [model]_score...)
+      - Computes Krippendorff's alpha over the numeric scores.
+    """
+    if log_file:
+        log_file_path = log_file
+        print(f"Reading specified log file: {log_file_path}")
+    else:
+        info = get_latest_log_file(log_dir)
+        if not info:
+            print(f"No logs found in {log_dir}. Nothing to extract.")
+            return
+        log_file_path = info.name
+        print(f"Reading newest log file in {log_dir}: {log_file_path}")
 
-    # Calculate and print the number of answers different from A or B
-    different_answers = df[~df['answer'].isin(['A', 'B'])].shape[0]
-    print(f"\nAnswers different from A or B: {different_answers}")
+    # ----------------------------------------------------------------
+    # 1) Read the log *with attachments resolved*
+    # ----------------------------------------------------------------
+    log = read_eval_log(log_file_path, resolve_attachments=True)
+    if log.status != "success":
+        print(f"Warning: log has status={log.status} (may be incomplete).")
 
-    # Create a table with the specified format
-    table_data = []
-    for i in range(len(data['samples'])):
-        sample = data['samples'][i]
-        question_summary = sample['input'].split('\n')[0]  # Extract first line as summary
-        model_answer = sample['scores']['choice']['answer']
-        correct_answer = sample['target']
-        correct = '✓' if model_answer == correct_answer else '✗'
-        table_data.append([i + 1, question_summary, model_answer, correct_answer, correct])
+    heading = log.eval.model
 
-    # Create DataFrame for the table
-    table_df = pd.DataFrame(table_data, columns=['ID', 'Question Summary', 'Model Answer', 'Correct Answer', 'Correct?'])
-    print("\n=== Question-wise Results ===")
-    print(table_df.to_markdown(index=False, numalign="left", stralign="left"))
+    # ----------------------------------------------------------------
+    # 2) Identify real scoring models, excluding "avg"/"error_count"
+    # ----------------------------------------------------------------
+    all_scoring_models = []
+    if log.results and log.results.scores:
+        all_scoring_models = [s.name for s in log.results.scores]
+    scoring_models = [m for m in all_scoring_models if m not in ("avg","error_count")]
 
-    return df
+    rows = []
+    alpha_matrix = []
 
-# Load and parse the JSON data
-try:
-    # Assuming `document_content` holds the string form of the JSON
-    data = json.loads(document_content)
-    results_df = analyze_logs(data)
-except Exception as e:
-    print(f"Error during analysis: {e}")
+    # ----------------------------------------------------------------
+    # 3) For each sample, gather question, answer, assessments, numeric scores
+    # ----------------------------------------------------------------
+    for sample in (log.samples or []):
+        # If needed, we can also do:
+        # sample = resolve_sample_attachments(sample)
+
+        sample_id = sample.id
+        question_text = sample.input or ""
+
+        # A) Extract final assistant "answer" from sample.messages
+        answer_content = ""
+        for msg in (sample.messages or []):
+            if getattr(msg, "source", None) == "generate" and getattr(msg, "role", "") == "assistant":
+                answer_content = msg.content
+                break
+
+        # B) Extract textual assessments for each scorer from sample.events 
+        scorer_contents = {model: "" for model in scoring_models}
+        for ev in (sample.events or []):
+            if ev.event == "model" and ev.model in scorer_contents:
+                try:
+                    choices = ev.output.choices[0].message.content
+                    # Handle anthropic/claude style responses
+                    if isinstance(choices, list):
+                        content = choices[0].text
+                    else:
+                        content = choices
+                    scorer_contents[ev.model] = content.strip()
+                except (AttributeError, IndexError):
+                    continue
+
+
+        # C) Numeric scores from final_digit_model_graded_qa
+        row_scores = []
+        final_scores = sample.scores.get("final_digit_model_graded_qa", None)
+        if final_scores and final_scores.value:
+            row_scores = [final_scores.value.get(m, None) for m in scoring_models]
+        else:
+            row_scores = [None]*len(scoring_models)
+
+        # D) Build row: ID, question, answer, each model’s text, each model’s numeric score
+        row = [sample_id, question_text, answer_content]
+        for m in scoring_models:
+            row.append(scorer_contents[m])
+        row.extend(row_scores)
+
+        rows.append(row)
+        alpha_matrix.append(row_scores)
+
+    # ----------------------------------------------------------------
+    # 4) Write CSV
+    # ----------------------------------------------------------------
+    timestamp_str = parse_timestamp_from_filename(log_file_path)
+    output_csv = f"./results_{timestamp_str}.csv"
+
+    headers = ["sample_id", "question", "answer"]
+    headers.extend([f"{m}_assessment" for m in scoring_models])
+    headers.extend([f"{m}_score" for m in scoring_models])
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([heading] + [""]*(len(headers)-1))  # heading row
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow(row)
+
+    print(f"Results saved to {output_csv}")
+
+    # ----------------------------------------------------------------
+    # 5) Compute Krippendorff's alpha
+    # ----------------------------------------------------------------
+    arr = np.array(alpha_matrix, dtype=float).T
+    arr = np.where(np.isnan(arr), np.nan, arr)
+
+    alpha_val = krippendorff.alpha(reliability_data=arr, level_of_measurement="interval")
+    print(f"\nKrippendorff’s alpha (interval): {alpha_val:.3f}")
+
+    # Show summary
+    print(f"Number of samples: {len(rows)}")
+    for i, model_name in enumerate(scoring_models):
+        col = arr[i, :]
+        mean_val = np.nanmean(col) if col.size > 0 else float('nan')
+        print(f"{model_name}: average={mean_val:.3f}")
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    log_file = None
+    log_dir = "./logs"
+    
+    i = 0
+    while i < len(args):
+        if args[i] == "--log-file":
+            if i + 1 < len(args):
+                log_file = args[i + 1]
+                i += 2
+            else:
+                print("Error: --log-file requires a path argument")
+                sys.exit(1)
+        elif args[i] == "--log-dir":
+            if i + 1 < len(args):
+                log_dir = args[i + 1]
+                i += 2
+            else:
+                print("Error: --log-dir requires a path argument")
+                sys.exit(1)
+        else:
+            print(f"Unknown argument: {args[i]}")
+            sys.exit(1)
+    
+    extract_scores_and_compute_alpha(log_file=log_file, log_dir=log_dir)
