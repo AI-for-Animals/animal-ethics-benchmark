@@ -33,7 +33,7 @@ MODEL = "google/gemini-2.0-flash-exp"  # Main model being evaluated
 SCORER_MODELS = "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-mini-2024-07-18"
 
 # Dataset and batch settings
-DATASET = "/content/anai/artifacts/reddit_curated.json"  # Path to your dataset
+DATASET = "/content/anai/artifacts/filtered.json"  # Path to your dataset
 LIMIT = 3        # Samples per batch
 NUM_BATCHES = 2  # Number of batches to process
 START_BATCH = 0  # Starting batch number (0-based)
