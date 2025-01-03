@@ -1,4 +1,4 @@
-# ANAI v4 (2024-12-26 update by Arturs Kanepajs)
+# ANAI v5 (2025-01-04 update by Arturs Kanepajs)
 
 To get detailed results for multiple LLMs, prerequisites:
 - A Google Colab account 
@@ -25,80 +25,104 @@ repository_url = "https://{token}@github.com/AI-for-Animals/animal-ethics-benchm
 2) Execute the following.
 
 ```
-from google.colab import userdata
-import os
+# USER CONFIGURATION SECTION
+#######################
 
-# Set API keys
-os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
-os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
-os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
-
-# Uncomment and set other keys if necessary
-# os.environ['TOGETHER_API_KEY'] = userdata.get('TOGETHER_API_KEY')
-# os.environ['MISTRAL_API_KEY'] = userdata.get('MISTRAL_API_KEY')
-
-# Set parameters
-MODEL = "google/gemini-2.0-flash-exp"
+# Models to evaluate and score with
+MODEL = "google/gemini-2.0-flash-exp"  # Main model being evaluated
 SCORER_MODELS = "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-mini-2024-07-18"
-DATASET = "/content/anai/artifacts/reddit_curated.json"  # absolute path
-LIMIT = 3  # Change sample size here
+
+# Dataset and batch settings
+DATASET = "/content/anai/artifacts/reddit_curated.json"  # Path to your dataset
+LIMIT = 3        # Samples per batch
+NUM_BATCHES = 2  # Number of batches to process
+START_BATCH = 0  # Starting batch number (0-based)
+
+# Model parameters
 TEMPERATURE = 0.5
 SEED = 42
 
-# Some of the available models (for reference):
+#######################
+# Script implementation below
 
-# Anthropic: 
-# https://docs.anthropic.com/en/docs/about-claude/models
-# anthropic/claude-3-5-sonnet-20241022  
-# anthropic/claude-3-5-haiku-20241022
+from google.colab import userdata
+import os
+import time
+import json
+import shutil
+import logging
 
-# OpenAI:
-# https://platform.openai.com/docs/models
-# openai/gpt-4o-2024-08-06	
-# openai/gpt-4o-mini-2024-07-18
-# openai/o1-2024-12-17 (limited API access)
-# openai/o1-mini-2024-09-12 (limited API access)
+# Configure basic logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s'
+)
 
-# Google:
-# https://ai.google.dev/gemini-api/docs/models/gemini 
-# google/gemini-2.0-flash-thinking-exp-1219
-# google/gemini-2.0-flash-exp-1121
-# google/gemini-2.0-flash-exp
-# google/gemini-exp-1206
-# google/gemini-1.5-pro-002
-
-# Other 
-# together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
-# mistral/mistral-large-2407
-# See more https://inspect.ai-safety-institute.org.uk/models.html
-
-# Vertex:
-# e.g. vertex/gemini-2.0-flash-exp
-# Does not need API but needs setup & login 
-# OpenAI models currently not supported, fees for Anthropic 
-# See https://cloud.google.com/vertex-ai/docs for details
- 
-
+# Set API keys
+try:
+    os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
+    os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
+    os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
+except Exception as e:
+    raise Exception("Failed to set API keys: " + str(e))
 
 # Set model as an environment variable
 os.environ['INSPECT_EVAL_MODEL'] = MODEL
 
-# Run evaluation directly with parameters visible as environment variables
-!python /content/anai/evals_v5.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$DATASET" --limit "$LIMIT"  --temperature "$TEMPERATURE" --seed "$SEED"
+# Read the full dataset
+try:
+    with open(DATASET, 'r') as f:
+        full_data = json.load(f)
+    logging.info(f"Loaded dataset with {len(full_data)} samples")
+except Exception as e:
+    raise Exception(f"Failed to load dataset {DATASET}: {str(e)}")
 
-# To analyze the latest log file in the default logs directory
-!python /content/anai/logfileanalysis.py
+# Process batches
+successful_batches = 0
+for batch in range(START_BATCH, START_BATCH + NUM_BATCHES):
+    logging.info(f"\nProcessing batch {batch + 1}/{START_BATCH + NUM_BATCHES}")
+    start_index = batch * LIMIT
+    end_index = start_index + LIMIT
+    
+    # Create batch dataset
+    batch_data = full_data[start_index:end_index]
+    batch_dataset = f"/content/anai/artifacts/batch_{batch}.json"
+    
+    try:
+        # Save batch dataset
+        with open(batch_dataset, 'w') as f:
+            json.dump(batch_data, f)
+        
+        # Run evaluation using the batch dataset
+        !python /content/anai/evals_v5.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$batch_dataset" \
+            --limit "$LIMIT" --temperature "$TEMPERATURE" --seed "$SEED"
 
-# To analyze a specific log file
-# !python /content/anai/logfileanalysis.py --log-file "/content/logs/2025-01-02T10-42-54+00-00_anai-open-ended_dyC4PxFiSMBu5wRuWTTRNM.eval"
+        # Analyze the results
+        !python /content/anai/logfileanalysis.py
 
-# To analyze the latest log file in a different directory
-#!python /content/anai/logfileanalysis.py --log-dir "/content/different_logs"
+        successful_batches += 1
+        
+    except Exception as e:
+        logging.error(f"Error processing batch {batch}: {str(e)}")
+        continue
+    finally:
+        # Cleanup batch file
+        if os.path.exists(batch_dataset):
+            os.remove(batch_dataset)
+    
+    # Sleep between batches (skip after last batch)
+    if batch < START_BATCH + NUM_BATCHES - 1:
+        time.sleep(5)
+
+# Report completion statistics
+logging.info(f"\nEvaluation complete. {successful_batches}/{NUM_BATCHES} batches processed successfully.")
 
 # Set up Ngrok for viewing
-
-os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
-!python /content/anai/test/inspectview.py
+try:
+    os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
+    !python /content/anai/test/inspectview.py
+except Exception as e:
+    logging.error(f"Failed to set up Ngrok viewer: {str(e)}")
 ```
 Note that as of 7 Dec 2024 "/content/anai/artifacts/curated_v3.json" contains a total of 218 questions:
 1) 12 “What are {animals} good for?” questions (same questions as in Hagendorff et al 2023 "Speciesist bias in AI: how AI applications perpetuate discrimination and unfair outcomes against animals"", Table 1)
