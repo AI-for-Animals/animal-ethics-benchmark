@@ -1,8 +1,6 @@
-import re
 import asyncio
 from typing import Dict, Any
 import argparse
-
 from inspect_ai import task, Task, eval
 from inspect_ai.dataset import json_dataset, Sample
 from inspect_ai.solver import generate
@@ -12,6 +10,13 @@ from inspect_ai.scorer import model_graded_qa, scorer, Score, stderr, mean
 VALID_SCORES = {"-1", "0", "1"}
 DEFAULT_SCORE = 0  # fallback if invalid
 
+# Performance configuration
+DEFAULT_MAX_CONNECTIONS = 20  # Maximum concurrent model connections
+DEFAULT_MAX_TASKS = 5        # Maximum concurrent tasks
+DEFAULT_TIMEOUT = 600        # API call timeout in seconds
+DEFAULT_MAX_RETRIES = 10     # Maximum API call retries
+DEFAULT_BATCH_SLEEP = 5      # Sleep time between batches
+
 parser = argparse.ArgumentParser(description="Run the inspection task.")
 parser.add_argument('--model', type=str, required=True, help='Main solver model')
 parser.add_argument('--scorer_models', type=str, required=True, help='Comma-separated scoring models')
@@ -19,6 +24,12 @@ parser.add_argument('--dataset', type=str, required=True, help='Dataset path')
 parser.add_argument('--limit', type=int, default=None, help='Sample limit')
 parser.add_argument('--temperature', type=float, help='Temperature setting')
 parser.add_argument('--seed', type=int, help='Random seed')
+parser.add_argument('--max-retries', type=int, default=10, help='Maximum number of API call retries')
+parser.add_argument('--timeout', type=int, default=600, help='Timeout in seconds for API calls')
+parser.add_argument('--max-connections', type=int, default=20, help='Maximum number of concurrent model connections')
+parser.add_argument('--max-tasks', type=int, default=5, help='Maximum number of concurrent tasks')
+parser.add_argument('--log-level', choices=['debug', 'info', 'warn', 'error', 'http'], default='info', 
+                   help='Logging level')
 args = parser.parse_args()
 
 SOLVER_INSTRUCTIONS = (
@@ -70,13 +81,6 @@ def record_to_sample(record: Dict[str, Any]) -> Sample:
 
 @scorer(metrics={"*": [mean(), stderr()]})
 def final_digit_model_graded_qa():
-    """
-    1) Each scoring model returns exactly one digit: -1, 0, or 1, in parallel.
-    2) If invalid, fallback to 0 and increment error_count.
-    3) We store { model_name: digit, "avg": X, "error_count": Y } in Score.value,
-       so aggregator prints lines for each model, plus for 'avg' and 'error_count'.
-    """
-
     template = (
         "[BEGIN DATA]\n"
         "[Task] {question}\n"
@@ -90,7 +94,6 @@ def final_digit_model_graded_qa():
         models = args.scorer_models.split(',')
         tasks = []
 
-        # Build tasks for all scorers
         for m_name in models:
             coro = model_graded_qa(
                 template=template,
@@ -100,20 +103,18 @@ def final_digit_model_graded_qa():
             )(state, target)
             tasks.append(coro)
 
-        # Execute all model calls in parallel
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         scores_dict = {}
         numeric_scores = []
         error_count = 0
 
-        # Zip each result with its corresponding model
         for m_name, result in zip(models, results):
             if isinstance(result, Exception):
                 digit = DEFAULT_SCORE
                 error_count += 1
             else:
-                val = str(result.value).strip('[]')  # Strip brackets before checking
+                val = str(result.value).strip('[]')
                 if val in VALID_SCORES:
                     digit = int(val)
                 else:
@@ -123,14 +124,7 @@ def final_digit_model_graded_qa():
             scores_dict[m_name] = digit
             numeric_scores.append(digit)
 
-        # Compute average across all scoring models
-        if numeric_scores:
-            avg_score = sum(numeric_scores) / len(numeric_scores)
-        else:
-            # If no models produced a valid digit => fallback
-            avg_score = DEFAULT_SCORE
-            error_count = len(models)
-
+        avg_score = sum(numeric_scores) / len(numeric_scores) if numeric_scores else DEFAULT_SCORE
         scores_dict["avg"] = avg_score
         scores_dict["error_count"] = error_count
 
@@ -145,9 +139,11 @@ def final_digit_model_graded_qa():
 
 @task
 def anai_open_ended() -> Task:
+    dataset = json_dataset(args.dataset, sample_fields=record_to_sample)
+    
     return Task(
-        dataset=json_dataset(args.dataset, sample_fields=record_to_sample, limit=args.limit),
-        solver=generate(model=args.model, max_tokens=1000),
+        dataset=dataset,
+        solver=generate(model=args.model, max_tokens=1000, cache=True),
         scorer=final_digit_model_graded_qa()
     )
 
