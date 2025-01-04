@@ -36,11 +36,15 @@ SCORER_MODELS = "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp
 DATASET = "/content/anai/artifacts/filtered.json"  # Path to your dataset
 LIMIT = 3        # Samples per batch
 NUM_BATCHES = 2  # Number of batches to process
-START_BATCH = 0  # Starting batch number (0-based)
+START_BATCH = 2  # Starting batch number (0-based)
 
 # Model parameters
 TEMPERATURE = 0.5
 SEED = 42
+
+# Output settings
+from google.colab import drive
+OUTPUT_DIR = "/content/drive/MyDrive/eval_outputs"  # Change this to your preferred Drive location
 
 #######################
 # Script implementation below
@@ -57,6 +61,15 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(message)s'
 )
+
+# Mount Google Drive and create output directory
+try:
+    drive.mount('/content/drive')
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    logging.info(f"Output directory set to: {OUTPUT_DIR}")
+except Exception as e:
+    logging.error(f"Failed to set up output directory: {str(e)}")
+    raise
 
 # Set API keys
 try:
@@ -97,8 +110,8 @@ for batch in range(START_BATCH, START_BATCH + NUM_BATCHES):
         !python /content/anai/evals_v5.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$batch_dataset" \
             --limit "$LIMIT" --temperature "$TEMPERATURE" --seed "$SEED"
 
-        # Analyze the results
-        !python /content/anai/logfileanalysis.py
+        # Analyze the results with output directory
+        !python /content/anai/logfileanalysis.py --output-dir "$OUTPUT_DIR"
 
         successful_batches += 1
         
