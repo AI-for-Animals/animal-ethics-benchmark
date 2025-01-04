@@ -94,6 +94,7 @@ except Exception as e:
 successful_batches = 0
 for batch in range(START_BATCH, START_BATCH + NUM_BATCHES):
     logging.info(f"\nProcessing batch {batch + 1}/{START_BATCH + NUM_BATCHES}")
+    !inspect cache prune
     start_index = batch * LIMIT
     end_index = start_index + LIMIT
     
