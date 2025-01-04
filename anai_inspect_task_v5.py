@@ -5,6 +5,7 @@ from inspect_ai import task, Task, eval
 from inspect_ai.dataset import json_dataset, Sample
 from inspect_ai.solver import generate
 from inspect_ai.scorer import model_graded_qa, scorer, Score, stderr, mean
+from inspect_ai import CachePolicy
 
 # Valid final digit scores are -1, 0, 1
 VALID_SCORES = {"-1", "0", "1"}
@@ -85,6 +86,7 @@ def record_to_sample(record: Dict[str, Any]) -> Sample:
 
 @scorer(metrics={"*": [mean(), stderr()]})
 def final_digit_model_graded_qa():
+    cache = CachePolicy(expiry="1W", scopes={"role": "scorer"})
     template = (
         "[BEGIN DATA]\n"
         "[Task] {question}\n"
@@ -103,7 +105,8 @@ def final_digit_model_graded_qa():
                 template=template,
                 instructions=target.text,
                 model=m_name,
-                grade_pattern=grade_pattern
+                grade_pattern=grade_pattern,
+                cache=cache 
             )(state, target)
             tasks.append(coro)
 
