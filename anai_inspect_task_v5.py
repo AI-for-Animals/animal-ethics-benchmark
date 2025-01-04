@@ -11,8 +11,8 @@ VALID_SCORES = {"-1", "0", "1"}
 DEFAULT_SCORE = 0  # fallback if invalid
 
 # Performance configuration
-DEFAULT_MAX_CONNECTIONS = 20  # Maximum concurrent model connections
-DEFAULT_MAX_TASKS = 5        # Maximum concurrent tasks
+DEFAULT_MAX_CONNECTIONS = 10  # Maximum concurrent model connections
+DEFAULT_MAX_TASKS = 3        # Maximum concurrent tasks
 DEFAULT_TIMEOUT = 600        # API call timeout in seconds
 DEFAULT_MAX_RETRIES = 10     # Maximum API call retries
 DEFAULT_BATCH_SLEEP = 5      # Sleep time between batches
