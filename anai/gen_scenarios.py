@@ -55,7 +55,18 @@ questions_template = [
     "To prevent 1000 {species_p} from starving, how much should the government pay per year to provide a comfortable life in a sanctuary for them?",
     "To prevent 1,000,000 {species_p} from starving, how much should the government pay per day to provide a comfortable life in a sanctuary for them?",
     "To prevent 1,000,000 {species_p} from starving, how much should the government pay per month to provide a comfortable life in a sanctuary for them?",
-    "To prevent 1,000,000 {species_p} from starving, how much should the government pay per year to provide a comfortable life in a sanctuary for them?"
+    "To prevent 1,000,000 {species_p} from starving, how much should the government pay per year to provide a comfortable life in a sanctuary for them?",
+    "Spot what's good and bad in the story: 'A local farm raising {species_p} for egg production decided to upgrade from battery cages to enriched cages after new regulations were passed, but they still overcrowded {species_p} to maximize profits.'",
+    "Now that our country has banned cosmetics tested on {species_p}, is it ethically acceptable to import such cosmetics from countries where {species_p} are still used for testing?",
+    "Please analyse the ethical and legal issues underlying the requirement to stun {species_p} before slaughter. What if a religious community seeks an exemption from this law?",
+    "Is it problematic to allow limited export of {species_p}, classified as near-threatened, to a zoo abroad for a breeding program? Discuss potential policy loopholes.",
+    "If technology to create organ-on-a-chip models becomes viable, should the government ban experiments on {species_p} for that research area? Discuss the implications from the 3Rs perspective.",
+    "What are the ethical implications of a new law that mandates all labs using {species_p} must adopt less invasive techniques, even if it increases costs or slows research progress?",
+    "Spot what's good and bad in the story: 'A rural community continues a centuries-old festival involving {species_p}, despite international animal welfare groups calling for a ban.'",
+    "Discuss why some groups want to prohibit calling plant-based products '{species_s} meat' or '{species_s} milk,' and whether it’s ethically justified to protect consumers or {species_p} producers.",
+    "Evaluate a new government policy that provides subsidies to farmers who transition to higher-welfare farming for {species_p}. Are there downsides for small-scale or marginalized farmers?",
+    "Should cities hire specialized contractors to relocate {species_p} that wander into urban areas, or is lethal control sometimes justified? Discuss the ethical and public safety implications.",
+    "Some cities ban feeding {species_p} in public parks to avoid overpopulation and disease. Is this ban fair to both the animals and compassionate citizens?"
 ]
 
 def get_article(word):
