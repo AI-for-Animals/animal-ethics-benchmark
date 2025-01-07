@@ -16,7 +16,7 @@ def filter_json_by_csv_with_ids(json_path, csv_path, output_json_path):
     csv_data = pd.read_csv(csv_path)
 
     # Clean and normalize CSV questions
-    csv_questions = csv_data.iloc[2:, 1].dropna()  # Exclude the first two rows (headers)
+    csv_questions = csv_data.iloc[1:, 1].dropna()  # Exclude the first two rows (headers)
     csv_cleaned_questions = [clean_question(q).lower() for q in csv_questions]
 
     # Filter the JSON data and add sequential question IDs
