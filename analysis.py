@@ -71,8 +71,8 @@ def get_model_name(path):
 def compute_cluster_metrics(dfs, models, tags_column='tags'):
     """
     Compute mean and SD for each cluster across all models.
-    Expects each df to have a column named 'tags' and one or more score columns 
-    (the user might adapt how scores are identified).
+    Expects each df to have a column named 'tags' and one or more score columns.
+    The count values will be divided by 3 in the final output.
     """
     cluster_stats = defaultdict(lambda: {'scores': [], 'count': 0})
     
@@ -80,14 +80,11 @@ def compute_cluster_metrics(dfs, models, tags_column='tags'):
         if tags_column not in df.columns:
             continue
         
-        # Identify any columns that have 'score' in their name. We'll average them.
+        # Identify any columns that have 'score' in their name
         score_cols = [c for c in df.columns if 'score' in c.lower()]
         
         for tag in df[tags_column].fillna('uncategorized').unique():
             mask = df[tags_column].fillna('uncategorized') == tag
-            # Take the mean across all 'score' columns for rows in that cluster
-            # If each df has exactly one "score" column, we simply do df.loc[mask, score_cols].values.
-            # If multiple, we can average them:
             scores = df.loc[mask, score_cols].mean(axis=1).values
             cluster_stats[tag]['scores'].extend(scores)
             cluster_stats[tag]['count'] += len(scores)
@@ -97,14 +94,18 @@ def compute_cluster_metrics(dfs, models, tags_column='tags'):
         scores = np.array(data['scores'])
         if len(scores) == 0:
             continue
+            
+        # Divide the count by 3 before adding to results
+        adjusted_count = data['count'] // 3  # Using integer division
+        
         results.append({
             'Cluster': tag,
-            'Count': data['count'],
+            'Count': adjusted_count,  # This will now be the divided count
             'Mean Score': np.mean(scores),
             'SD': np.std(scores, ddof=1) if len(scores) > 1 else 0.0
         })
     
-    # Sort by descending count
+    # Sort by descending count (now using the divided values)
     return pd.DataFrame(results).sort_values('Count', ascending=False)
 
 
