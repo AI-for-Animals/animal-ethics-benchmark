@@ -133,7 +133,7 @@ def extract_scores_and_compute_alpha(log_file=None, log_dir="./logs", output_dir
     alpha_categories = compute_alpha_safely(arr_categories, "ordinal")
 
     # Prepare headers
-    headers = (["sample_id", "question", "answer"] +
+    headers = (["sample_id", "question", f"{log.eval.model}_answer"] +
               [f"{m}_assessment" for m in scoring_models] +
               [f"{m}_category" for m in scoring_models] +
               [f"{m}_score" for m in scoring_models])
@@ -154,7 +154,6 @@ def extract_scores_and_compute_alpha(log_file=None, log_dir="./logs", output_dir
     # Save CSV results
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([log.eval.model] + [""]*(len(headers)-1))
         writer.writerow(headers)
         writer.writerows(rows)
 
