@@ -1,4 +1,4 @@
-# ANAI v5 (2025-01-04 update by Arturs Kanepajs)
+# ANAI v5 (2025-01-09 update by Arturs Kanepajs)
 
 To get detailed results for multiple LLMs, prerequisites:
 - A Google Colab account 
