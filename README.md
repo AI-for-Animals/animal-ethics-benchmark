@@ -25,150 +25,92 @@ repository_url = "https://{token}@github.com/AI-for-Animals/animal-ethics-benchm
 2) Execute the following.
 
 ```
-# USER CONFIGURATION SECTION
-#######################
+from google.colab import drive, userdata
+import os, time, json, logging
+import pandas as pd
 
-# Models to evaluate and score with
-MODEL = "google/gemini-2.0-flash-exp"  # Main model being evaluated
-SCORER_MODELS = "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-mini-2024-07-18"
+# Configuration
+CONFIG = {
+    'model': "google/gemini-2.0-flash-exp",
+    'scorers': "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-mini-2024-07-18",
+    'dataset': "/content/anai/artifacts/synthetic.json",
+    'output_dir': "/content/drive/MyDrive/eval_outputs/synthetic/gemini-2.0-flash-exp",
+    'samples_per_batch': 100,
+    'num_batches': 30,
+    'start_batch': 0,
+    'temperature': 0.5,
+    'seed': 42
+}
 
-# Dataset and batch settings
-DATASET = "/content/anai/artifacts/filtered.json"  # Path to your dataset
-LIMIT = 3        # Samples per batch
-NUM_BATCHES = 2  # Number of batches to process
-START_BATCH = 2  # Starting batch number (0-based)
-
-# Model parameters
-TEMPERATURE = 0.5
-SEED = 42
-
-# Output settings
-from google.colab import drive
-OUTPUT_DIR = "/content/drive/MyDrive/eval_outputs"  # Change this to your preferred Drive location
-
-#######################
-# Script implementation below
-
-from google.colab import userdata
-import os
-import time
-import json
-import shutil
-import logging
-
-# Configure basic logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s'
-)
-
-# Mount Google Drive and create output directory
-try:
+def setup_environment():
+    """Setup drive, directories and API keys"""
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     drive.mount('/content/drive')
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    logging.info(f"Output directory set to: {OUTPUT_DIR}")
-except Exception as e:
-    logging.error(f"Failed to set up output directory: {str(e)}")
-    raise
-
-# Set API keys
-try:
-    os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
-    os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')
-    os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
-except Exception as e:
-    raise Exception("Failed to set API keys: " + str(e))
-
-# Set model as an environment variable
-os.environ['INSPECT_EVAL_MODEL'] = MODEL
-
-# Read the full dataset
-try:
-    with open(DATASET, 'r') as f:
-        full_data = json.load(f)
-    logging.info(f"Loaded dataset with {len(full_data)} samples")
-except Exception as e:
-    raise Exception(f"Failed to load dataset {DATASET}: {str(e)}")
-
-# Process batches
-successful_batches = 0
-for batch in range(START_BATCH, START_BATCH + NUM_BATCHES):
-    logging.info(f"\nProcessing batch {batch + 1}/{START_BATCH + NUM_BATCHES}")
-    !inspect cache prune
-    start_index = batch * LIMIT
-    end_index = start_index + LIMIT
+    os.makedirs(CONFIG['output_dir'], exist_ok=True)
     
-    # Create batch dataset
-    batch_data = full_data[start_index:end_index]
-    batch_dataset = f"/content/anai/artifacts/batch_{batch}.json"
+    # Set API keys
+    for api in ['ANTHROPIC', 'OPENAI', 'GOOGLE']:
+        os.environ[f'{api}_API_KEY'] = userdata.get(f'{api}_API_KEY')
+    os.environ['INSPECT_EVAL_MODEL'] = CONFIG['model']
+
+def process_batch(batch_num, data):
+    """Process a single batch of evaluations"""
+    batch_file = f"/content/anai/artifacts/batch_{batch_num}.json"
+    start_idx = batch_num * CONFIG['samples_per_batch']
     
     try:
-        # Save batch dataset
-        with open(batch_dataset, 'w') as f:
-            json.dump(batch_data, f)
+        # Save batch data
+        with open(batch_file, 'w') as f:
+            json.dump(data[start_idx:start_idx + CONFIG['samples_per_batch']], f)
         
-        # Run evaluation using the batch dataset
-        !python /content/anai/evals_v5.py --model "$MODEL" --scorer_models "$SCORER_MODELS" --dataset "$batch_dataset" \
-            --limit "$LIMIT" --temperature "$TEMPERATURE" --seed "$SEED"
-
-        # Analyze the results with output directory
-        !python /content/anai/logfileanalysis.py --output-dir "$OUTPUT_DIR"
-
-        successful_batches += 1
+        # Run evaluation and analysis
+        !inspect cache prune
+        !python /content/anai/evals_v5.py --model "{CONFIG['model']}" \
+            --scorer_models "{CONFIG['scorers']}" --dataset "{batch_file}" \
+            --limit "{CONFIG['samples_per_batch']}" \
+            --temperature "{CONFIG['temperature']}" --seed "{CONFIG['seed']}"
+        !python /content/anai/logfileanalysis.py --output-dir "{CONFIG['output_dir']}"
         
+        return True
     except Exception as e:
-        logging.error(f"Error processing batch {batch}: {str(e)}")
-        continue
+        logging.error(f"Batch {batch_num} failed: {str(e)}")
+        return False
     finally:
-        # Cleanup batch file
-        if os.path.exists(batch_dataset):
-            os.remove(batch_dataset)
+        if os.path.exists(batch_file):
+            os.remove(batch_file)
+
+def main():
+    setup_environment()
     
-    # Sleep between batches (skip after last batch)
-    if batch < START_BATCH + NUM_BATCHES - 1:
-        time.sleep(5)
-
-# Report completion statistics
-logging.info(f"\nEvaluation complete. {successful_batches}/{NUM_BATCHES} batches processed successfully.")
-
-# Set up Ngrok for viewing
-try:
+    # Load dataset
+    with open(CONFIG['dataset'], 'r') as f:
+        data = json.load(f)
+    
+    # Process batches
+    successful = 0
+    batch_range = range(CONFIG['start_batch'], CONFIG['start_batch'] + CONFIG['num_batches'])
+    
+    for batch in batch_range:
+        logging.info(f"\nProcessing batch {batch + 1}/{max(batch_range) + 1}")
+        if process_batch(batch, data):
+            successful += 1
+        if batch < max(batch_range):
+            time.sleep(5)
+    
+    logging.info(f"\nCompleted {successful}/{CONFIG['num_batches']} batches")
+    
+    # Combine results and add tags
+    !python /content/anai/combine.py --input-dir "{CONFIG['output_dir']}" \
+        --json-file "{CONFIG['dataset']}" --output-dir "{CONFIG['output_dir']}" \
+        --start-batch {CONFIG['start_batch']} --num-batches {CONFIG['num_batches']} \
+        --samples-per-batch {CONFIG['samples_per_batch']}
+    
+    # Setup viewer
     os.environ['NGROK_AUTHTOKEN'] = userdata.get('NGROK_AUTHTOKEN')
     !python /content/anai/test/inspectview.py
-except Exception as e:
-    logging.error(f"Failed to set up Ngrok viewer: {str(e)}")
-```
 
-3) To combine more than one csv file generated with the above, execute the following. Adjust the "combined_data" driectory path if needed.
-
-```
-import pandas as pd
-import glob
-import os
-from datetime import datetime
-from google.colab import drive
-
-def combine_csv_files(folder_path):
-    if not os.path.exists('/content/drive'):
-        drive.mount('/content/drive')
-    
-    csv_files = glob.glob(os.path.join(folder_path, "results_*.csv"))
-    csv_files.sort(key=lambda f: datetime.strptime(os.path.basename(f).split('_')[1].split('.')[0], '%Y-%m-%dT%H-%M-%S+00-00'))
-    
-    first_df = pd.read_csv(csv_files[0], header=[0, 1])
-    remaining_dfs = [pd.read_csv(f, skiprows=2, names=first_df.columns) for f in csv_files[1:]]
-    
-    combined_df = pd.concat([first_df] + remaining_dfs, ignore_index=True)
-    output_path = os.path.join(folder_path, f"combined_results_{os.path.basename(folder_path)}.csv")
-    combined_df.to_csv(output_path, index=False)
-    
-    print(f"\nFiles combined: {len(csv_files)}")
-    print(f"Total rows: {len(combined_df)}")
-    print(f"Output saved to: combined_results_{os.path.basename(folder_path)}.csv")
-    
-    return combined_df
-
-combined_data = combine_csv_files('/content/drive/MyDrive/eval_outputs')
+if __name__ == "__main__":
+    main()
 ```
 
 
