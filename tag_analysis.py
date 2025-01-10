@@ -16,11 +16,8 @@ Arguments:
                   AND: samples matching all of the tags
 
 Example usage:
-    Compare alpaca vs bee:
-    python tag_analysis.py --tags1 alpaca --tags2 bee
-
-    Compare samples tagged as both scenario-1 AND ant vs both bee AND scenario-1:
-    python tag_analysis.py --tags1 scenario-1 ant --tags2 bee scenario-1 --combination AND
+    Compare welfare-suggestive vs harm-suggestive:
+    python tag_analysis.py --tags1 welfare-suggestive --tags2 harm-suggestive
 """
 
 import pandas as pd
@@ -38,7 +35,7 @@ def load_data(file_paths):
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
 
-def get_tag_scores(df, tags, tag_columns=['tag1', 'tag2', 'tag3'], combination_type='OR'):
+def get_tag_scores(df, tags, tag_columns=['tag1', 'tag2', 'tag3', 'tag4'], combination_type='OR'):
     """Get scores for specified tags."""
     if combination_type == 'OR':
         mask = pd.concat([df[col].isin(tags) for col in tag_columns], axis=1).any(axis=1)
@@ -53,10 +50,16 @@ def compare_tag_groups(df, tags1, tags2, paired=False, combination_type='OR'):
     scores1 = get_tag_scores(df, tags1, combination_type=combination_type)
     scores2 = get_tag_scores(df, tags2, combination_type=combination_type)
     
+    # Check if we have enough samples
+    if len(scores1) == 0 or len(scores2) == 0:
+        raise ValueError(f"No samples found for one or both tag groups. Group 1: {len(scores1)} samples, Group 2: {len(scores2)} samples")
+    
     mean1, mean2 = scores1.mean(), scores2.mean()
     diff = mean1 - mean2
     
     if paired:
+        if len(scores1) != len(scores2):
+            raise ValueError("Paired test requires equal number of samples in both groups")
         t_stat, p_value = ttest_rel(scores1, scores2)
     else:
         t_stat, p_value = ttest_ind(scores1, scores2, equal_var=False)
@@ -96,22 +99,28 @@ if __name__ == "__main__":
     
     # Use the same file paths as in the original script
     base_path = "/content/drive/MyDrive/eval_outputs"
-    file_paths = [f"{base_path}/synthetic_{model}.csv" for model in 
+    file_paths = [f"{base_path}/results_{model}.csv" for model in 
                  ['claude-3-5-haiku-20241022', 'gemini-2.0-flash-exp', 'gpt-4o-mini-2024-07-18']]
     
     df = load_data(file_paths)
-    results = compare_tag_groups(df, args.tags1, args.tags2, args.paired, args.combination)
     
-    # Print results in a formatted table
-    print("\n=== Tag Group Comparison ===")
-    print(f"Group 1: {results['Tags1']}")
-    print(f"Group 2: {results['Tags2']}")
-    print("\nResults:")
-    print(f"{'Metric':<15} {'Value':<15}")
-    print("-" * 30)
-    print(f"Mean Group 1   {results['Mean1']:.4f} (n={results['N1']})")
-    print(f"Mean Group 2   {results['Mean2']:.4f} (n={results['N2']})")
-    print(f"Difference     {results['Difference']:.4f}")
-    print(f"SE            {results['SE']:.4f}")
-    print(f"95% CI        ({results['95% CI'][0]:.4f}, {results['95% CI'][1]:.4f})")
-    print(f"p-value       {results['p-value']:.4f}")
+    try:
+        results = compare_tag_groups(df, args.tags1, args.tags2, args.paired, args.combination)
+        
+        # Print results in a formatted table
+        print("\n=== Tag Group Comparison ===")
+        print(f"Group 1: {results['Tags1']}")
+        print(f"Group 2: {results['Tags2']}")
+        print("\nResults:")
+        print(f"{'Metric':<15} {'Value':<15}")
+        print("-" * 30)
+        print(f"Mean Group 1   {results['Mean1']:.4f} (n={results['N1']})")
+        print(f"Mean Group 2   {results['Mean2']:.4f} (n={results['N2']})")
+        print(f"Difference     {results['Difference']:.4f}")
+        print(f"SE            {results['SE']:.4f}")
+        print(f"95% CI        ({results['95% CI'][0]:.4f}, {results['95% CI'][1]:.4f})")
+        print(f"p-value       {results['p-value']:.4f}")
+    
+    except ValueError as e:
+        print(f"\nError: {str(e)}")
+        print("\nPlease check that the specified tags exist in the data and try again.")
