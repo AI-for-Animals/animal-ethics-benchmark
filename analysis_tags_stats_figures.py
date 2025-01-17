@@ -1,27 +1,31 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm
+from scipy.stats import t
 
-def wilson_interval(mean, n, confidence=0.95):
+def t_interval(mean, std, n, confidence=0.95):
     """
-    Calculate Wilson score interval for a mean score with error handling
+    Calculate t-distribution based confidence interval
+    Returns the margin of error (half-width of the CI)
     """
-    if n <= 0 or mean < 0 or mean > 1:
+    if n < 2:  # Need at least 2 samples for std
         return 0.0
     
-    z = norm.ppf((1 + confidence) / 2)
     try:
-        standard_error = mean * (1 - mean) / np.sqrt(n)
-        denominator = 1 + (z**2/n)
-        spread = z * np.sqrt(max(0, (mean * (1-mean) + z**2/(4*n)) / n)) / denominator
-        return float(spread) if not np.isnan(spread) else 0.0
+        # Get critical value from t-distribution
+        t_crit = t.ppf((1 + confidence) / 2, df=n-1)
+        # Calculate standard error
+        se = std / np.sqrt(n)
+        # Calculate margin of error
+        margin = t_crit * se
+        return float(margin) if not np.isnan(margin) else 0.0
     except:
         return 0.0
 
 def plot_cluster_metrics(df, tag_name, num_models):
     plot_df = df.sort_values('Total_mean', ascending=False)
-    errors = [wilson_interval(row['Total_mean'], row['Count'] * num_models) 
+    # Calculate error margins using t-distribution
+    errors = [t_interval(row['Total_mean'], row['Total_std'], row['Count'] * num_models) 
               for _, row in plot_df.iterrows()]
     
     plt.figure(figsize=(12, 6))
@@ -31,19 +35,26 @@ def plot_cluster_metrics(df, tag_name, num_models):
                   capsize=5,
                   error_kw={'elinewidth': 1, 'capthick': 1})
     
-    plt.title(f'Cluster Performance for {tag_name}')
-    plt.xlabel('Clusters')
     plt.ylabel('Total Mean Score')
     plt.xticks(range(len(plot_df)), plot_df['Cluster'], rotation=45, ha='right')
     
+    # Add rotated value labels at same position
     for bar, error in zip(bars, errors):
         height = bar.get_height()
         plt.text(bar.get_x() + bar.get_width()/2., 
                 height + error + 0.01,
                 f'{height:.3f}',
-                ha='center', va='bottom')
+                ha='center', 
+                va='bottom',
+                rotation=45)
     
-    plt.ylim(0, max(plot_df['Total_mean'] + pd.Series(errors)) * 1.15)
+    # Adjust y-axis limits to ensure 0 is visible and full error bars are shown
+    min_val = min(plot_df['Total_mean'] - pd.Series(errors))
+    max_val = max(plot_df['Total_mean'] + pd.Series(errors))
+    ymin = min(0, min_val * 1.15)  # Include 0 and allow negative values
+    ymax = max_val * 1.15
+    plt.ylim(ymin, ymax)
+    
     plt.grid(True, axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.savefig(f'cluster_plot_{tag_name}.png', dpi=300, bbox_inches='tight')
@@ -54,9 +65,9 @@ def get_model_name_from_file(filename):
 
 def calculate_cluster_metrics(base_path):
     file_names = [
-        'results_claude-3-5-haiku-20241022.csv',
-        'results_gemini-2.0-flash-exp.csv',
-        'results_gpt-4o-mini-2024-07-18.csv'
+        'results_claude-3-5-sonnet-20241022.csv',
+        'results_gemini-1.5-pro-002.csv',
+        'results_gpt-4o-2024-08-06.csv'
     ]
     num_models = len(file_names)
     tag_columns = ['tag1', 'tag2', 'tag3', 'tag4']
