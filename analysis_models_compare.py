@@ -1,7 +1,7 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from scipy.stats import norm
-from scipy.optimize import least_squares
+
 
 def load_and_clean_data(file_path):
     """Load CSV and convert all *_score columns to numeric."""
@@ -14,52 +14,122 @@ def get_model_names(df):
     """Extract model names from columns that end with '_score'."""
     return [col[:-6] for col in df.columns if col.endswith('_score')]
 
-def estimate_biases(dfs, models):
+def compute_analytical_biases(dfs, models):
     """
-    Estimate each model’s ‘true score,’ judge_bias, and self_bias.
-    Bounds keep them in plausible ranges.
+    Calculate biases using analytical formulas.
+    
+    Args:
+        dfs: List of dataframes, each containing scores from one judge
+        models: List of model names
+        
+    Returns:
+        Dictionary containing:
+        - raw_scores: Average scores received by each model
+        - adjusted_scores: Debiased scores
+        - judge_harshness: Average rating given to other models
+        - self_preference: How much better a model rates itself vs others
+        - total_bias: Difference between raw and adjusted scores
     """
-    # Flatten each file’s average for each model
-    scores = []
-    for df in dfs:
-        for judge in models:
-            col = f"{judge}_score"
+    n = len(models)
+    
+    # Create score matrix S[i,j] where i=judge, j=model being judged
+    S = np.zeros((n, n))
+    for i, df in enumerate(dfs):
+        for j, model in enumerate(models):
+            col = f"{model}_score"
             if col in df.columns:
-                scores.append(df[col].mean())
-    n_models = len(models)
-
-    def objective(x):
-        # x layout: [true_scores (n), judge_biases (n), self_biases (n)]
-        true_scores = x[:n_models]
-        judge_biases = x[n_models:2*n_models]
-        self_biases = x[2*n_models:]
-        chunked = [scores[i:i+n_models] for i in range(0, len(scores), n_models)]
-
-        residuals = []
-        for i, group in enumerate(chunked):
-            for j, score in enumerate(group):
-                predicted = true_scores[i] + judge_biases[j]
-                if i == j:
-                    predicted += self_biases[j]
-                residuals.append(score - predicted)
-        return np.array(residuals)
-
-    x0 = np.concatenate([
-        [0.5]*n_models,  # initial guess for true_scores
-        [0.0]*n_models,  # initial guess for judge_biases
-        [0.1]*n_models   # initial guess for self_biases
-    ])
-    bounds = (
-        np.concatenate([[0.3]*n_models, [-0.5]*n_models, [-0.2]*n_models]),
-        np.concatenate([[0.8]*n_models, [0.5]*n_models, [0.3]*n_models])
-    )
-    result = least_squares(objective, x0, bounds=bounds)
-
-    # Center judge_biases
-    true_scores = result.x[:n_models]
-    judge_biases = result.x[n_models:2*n_models] - np.mean(result.x[n_models:2*n_models])
-    self_biases = result.x[2*n_models:]
-    return true_scores, judge_biases, self_biases
+                S[i,j] = df[col].mean()
+    
+    # Calculate raw scores (R_j) - mean of ALL scores in each model's results file
+    raw_scores = np.zeros(n)
+    for i, df in enumerate(dfs):
+        # Get all score columns
+        score_cols = [col for col in df.columns if col.endswith('_score')]
+        # Take mean of ALL scores in this file (all assessments of this model)
+        raw_scores[i] = df[score_cols].values.mean()
+    
+    # Calculate judge harshness (H_j)
+    judge_harshness = np.zeros(n)
+    for j, judge_model in enumerate(models):
+        # Get scores this judge gave to OTHER models
+        other_scores = []
+        score_col = f"{judge_model}_score"  # column name for this judge's scores
+        
+        # Look for this judge's scores in other models' files
+        for i, df in enumerate(dfs):
+            if i != j and score_col in df.columns:  # exclude self-assessment
+                other_scores.extend(df[score_col].tolist())
+                
+        # Calculate average score this judge gave to others
+        judge_harshness[j] = np.mean(other_scores)
+    
+    # Calculate self preference (P_i) = S_ii - H_i 
+    # (how much better a model rates itself compared to how it rates others)
+    self_preference = np.zeros(n)
+    for i in range(n):
+        self_assessment = S[i,i]  # S_ii
+        judge_harshness_i = judge_harshness[i]  # H_i (already calculated above)
+        self_preference[i] = self_assessment - judge_harshness_i
+    
+    # Calculate adjusted scores (A_j)
+    adjusted_scores = np.zeros(n)
+    for j, model in enumerate(models):
+        # Get AVERAGE scores received from OTHER judges
+        scores_from_others = []
+        for i, judge_model in enumerate(models):
+            if i != j:  # exclude self-assessment
+                score_col = f"{judge_model}_score"
+                if score_col in dfs[j].columns:
+                    # Take mean of this judge's column first
+                    scores_from_others.append(dfs[j][score_col].mean())
+        
+        # Sum of average scores from other judges
+        sum_others = np.sum(scores_from_others)
+        adjusted_scores[j] = (sum_others + judge_harshness[j]) / n
+    
+    # Calculate total bias (should equal P_j/n)
+    total_bias = raw_scores - adjusted_scores
+    
+    # Create results dictionary
+    results = {
+        'raw_scores': dict(zip(models, raw_scores)),
+        'adjusted_scores': dict(zip(models, adjusted_scores)),
+        'judge_harshness': dict(zip(models, judge_harshness)),
+        'self_preference': dict(zip(models, self_preference)),
+        'total_bias': dict(zip(models, total_bias))
+    }
+    
+    # Print detailed results
+    print("\n=== Analytical Bias Analysis ===")
+    print("\nRaw Scores (R_j):")
+    for model, score in results['raw_scores'].items():
+        print(f"{model:>40} {score:.4f}")
+        
+    print("\nAdjusted Scores (A_j):")
+    for model, score in results['adjusted_scores'].items():
+        print(f"{model:>40} {score:.4f}")
+        
+    print("\nJudge Harshness (H_j):")
+    for model, score in results['judge_harshness'].items():
+        print(f"{model:>40} {score:.4f}")
+        
+    print("\nSelf Preference (P_j = S_ii - H_i):")
+    for model, score in results['self_preference'].items():
+        print(f"{model:>40} {score:.4f}")
+        
+    print("\nTotal Bias (R_j - A_j):")
+    for model, score in results['total_bias'].items():
+        print(f"{model:>40} {score:.4f}")
+    
+    # Print detailed calculation for each model
+    print("\n=== Detailed Self-Preference Calculations ===")
+    for i, model in enumerate(models):
+        print(f"\n{model}:")
+        print(f"  Self-assessment (S_ii):     {S[i,i]:.4f}")
+        print(f"  Judge harshness (H_i):      {judge_harshness[i]:.4f}")
+        print(f"  Self-preference (S_ii - H_i): {self_preference[i]:.4f}")
+        
+    return results
 
 def compute_comparison(data_A, data_B, tags=None, paired=False, clustered=False):
     """
@@ -107,14 +177,14 @@ def compute_comparison(data_A, data_B, tags=None, paired=False, clustered=False)
 
 def analyze_evaluation_results(dfs, file_paths):
     """
-    Primary function:
-      - estimate biases
-      - produce 8 comparison tables (4 raw, 4 debiased)
-      - print cluster counts for tag3
+    Primary analysis function that:
+      - Computes analytical biases
+      - Produces comparison tables
+      - Prints cluster counts for tag3
     """
     models = get_model_names(dfs[0])
-    true_scores, judge_biases, self_biases = estimate_biases(dfs, models)
-
+    bias_results = compute_analytical_biases(dfs, models)
+    
     # Build "adjusted" data by subtracting judge_bias & self_bias
     def get_adjusted_data():
         adjusted_dfs = []
@@ -122,17 +192,17 @@ def analyze_evaluation_results(dfs, file_paths):
             new_df = df.copy()
             for col in [c for c in df.columns if c.endswith('_score')]:
                 j_idx = models.index(col[:-6])
-                new_df[col] -= judge_biases[j_idx]
+                # Subtract judge harshness
+                new_df[col] -= bias_results['judge_harshness'][models[j_idx]]
+                # If this is self-assessment, subtract self preference
                 if j_idx == i:
-                    new_df[col] -= self_biases[j_idx]
+                    new_df[col] -= bias_results['self_preference'][models[j_idx]]
             adjusted_dfs.append(new_df)
         return adjusted_dfs
 
     def get_arrays(use_adjusted=False):
         """
         Return (score_arrays, tags_arrays).
-         - score_arrays[i] = array of means across each row's _score columns
-         - tags_arrays[i] = array of cluster tags from 'tag3'
         """
         data_source = get_adjusted_data() if use_adjusted else dfs
         score_arrays = [df.filter(regex='_score$').mean(axis=1).values for df in data_source]
@@ -141,9 +211,6 @@ def analyze_evaluation_results(dfs, file_paths):
         return score_arrays, tags_arrays
 
     def format_comparisons(model_pairs, paired, clustered, adjusted_label):
-        """
-        For each pair (i, j), compute the difference (raw or debiased).
-        """
         score_arrays, tags_arrays = get_arrays(use_adjusted=(adjusted_label=='Debiased'))
         results = []
         for i, j in model_pairs:
@@ -157,8 +224,8 @@ def analyze_evaluation_results(dfs, file_paths):
                 'Model 2': models[j],
             }
             if adjusted_label == 'Debiased':
-                row['Mean M1'] = true_scores[i]
-                row['Mean M2'] = true_scores[j]
+                row['Mean M1'] = bias_results['adjusted_scores'][models[i]]
+                row['Mean M2'] = bias_results['adjusted_scores'][models[j]]
             else:
                 row['Mean M1'] = np.mean(dA)
                 row['Mean M2'] = np.mean(dB)
@@ -166,7 +233,7 @@ def analyze_evaluation_results(dfs, file_paths):
             results.append(row)
         return pd.DataFrame(results)
 
-    # 4 raw comparisons, then 4 debiased
+    # Generate all comparison tables
     comparison_specs = [
         ('Neither Pairwise nor Clustered', False, False),
         ('Pairwise Unclustered', True, False),
@@ -183,72 +250,8 @@ def analyze_evaluation_results(dfs, file_paths):
         df_deb = format_comparisons(model_pairs, paired=p, clustered=c, adjusted_label='Debiased')
         all_comparisons.append((f"{desc} (Debiased)", df_deb))
 
-    # Print everything
-    print_results(models, judge_biases, self_biases, all_comparisons, dfs)
-
-    # Return dictionary if you need it
-    return {'comparisons': dict(all_comparisons)}
-
-def print_results(models, judge_biases, self_biases, all_comparisons, dfs):
-    """
-    Print:
-      - Observations per cluster (from 'tag3')
-      - Raw scores (from the first Raw table)
-      - Judge / self biases
-      - Adjusted scores (from the first Debiased table)
-      - Then print all 8 comparison tables
-    """
-    # 1) Print cluster counts for tag3
-    print_cluster_counts(dfs)
-
-    # 2) Build dictionary of raw_scores from the first "Neither Pairwise nor Clustered (Raw)"
-    first_raw_title = "Neither Pairwise nor Clustered (Raw)"
-    first_table = next((df for (title, df) in all_comparisons if title == first_raw_title), pd.DataFrame())
-    raw_scores = {}
-    for m in models:
-        df_m1 = first_table[first_table['Model 1'] == m]
-        if not df_m1.empty:
-            raw_scores[m] = df_m1['Mean M1'].iloc[0]
-        else:
-            df_m2 = first_table[first_table['Model 2'] == m]
-            if not df_m2.empty:
-                raw_scores[m] = df_m2['Mean M2'].iloc[0]
-
-    print("\n=== Raw Scores (Unadjusted) ===")
-    for m in models:
-        if m in raw_scores:
-            print(f"{m:>40} {raw_scores[m]:.4f}")
-
-    # 3) Judge & self biases
-    print("\n=== Estimated Biases ===")
-    print("\nJudge Biases:")
-    for m, b in zip(models, judge_biases):
-        print(f"{m:>40} {b:.4f}")
-
-    print("\nSelf Biases:")
-    for m, b in zip(models, self_biases):
-        print(f"{m:>40} {b:.4f}")
-
-    # 4) Adjusted scores from "Neither Pairwise nor Clustered (Debiased)"
-    first_debiased_title = "Neither Pairwise nor Clustered (Debiased)"
-    first_deb_table = next((df for (title, df) in all_comparisons if title == first_debiased_title), pd.DataFrame())
-    adjusted_scores = {}
-    for m in models:
-        df_m1 = first_deb_table[first_deb_table['Model 1'] == m]
-        if not df_m1.empty:
-            adjusted_scores[m] = df_m1['Mean M1'].iloc[0]
-        else:
-            df_m2 = first_deb_table[first_deb_table['Model 2'] == m]
-            if not df_m2.empty:
-                adjusted_scores[m] = df_m2['Mean M2'].iloc[0]
-
-    print("\n=== Adjusted Scores ===")
-    for m in models:
-        if m in adjusted_scores:
-            print(f"{m:>40} {adjusted_scores[m]:.4f}")
-
-    # 5) Print all 8 comparison tables
-    print("\n=== Comparison Tables ===\n(N is # data points; #Clusters if clustered)")
+    # Print comparison tables
+    print("\n=== Comparison Tables ===")
     for title, df in all_comparisons:
         if df.empty:
             continue
@@ -263,38 +266,14 @@ def print_results(models, judge_biases, self_biases, all_comparisons, dfs):
         print(f"\n--- {title} ---")
         print(df_print.to_string(index=False))
 
-def print_cluster_counts(dfs):
-    """
-    Show how many observations fall under each cluster in 'tag3'
-    across all files combined.
-    """
-    all_tags = []
-    for df in dfs:
-        if 'tag3' in df.columns:
-            all_tags.extend(df['tag3'].fillna('uncategorized').tolist())
-        else:
-            all_tags.extend(["NA"] * len(df))
+    return {'comparisons': dict(all_comparisons)}
 
-    cluster_series = pd.Series(all_tags)
-    cluster_counts = cluster_series.value_counts().reset_index()
-    cluster_counts.columns = ['ClusterTag', 'Count']
-
-    print("\n=== Observations per Cluster (tag3) ===")
-    print(cluster_counts.to_string(index=False))
-
-# -------------
-# Example usage:
 if __name__ == "__main__":
-    base_path = "/content/drive/MyDrive/eval_outputs"  # Not used, but shown for context
+    # Example usage
     file_paths = [
-        f"{base_path}/results_{m}.csv"
-        for m in [
-            'claude-3-5-haiku-20241022',
-            'gemini-2.0-flash-exp',
-            'gpt-4o-mini-2024-07-18'
-        ]
+        "/content/drive/MyDrive/eval_outputs/results_claude-3-5-sonnet-20241022.csv",
+        "/content/drive/MyDrive/eval_outputs/results_gemini-1.5-pro-002.csv", 
+        "/content/drive/MyDrive/eval_outputs/results_gpt-4o-2024-08-06.csv"
     ]
-    # Load data
     dfs = [load_and_clean_data(p) for p in file_paths]
-    # Run main analysis
     analyze_evaluation_results(dfs, file_paths)
