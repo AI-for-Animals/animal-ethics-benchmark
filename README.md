@@ -22,7 +22,7 @@ repository_url = "https://{token}@github.com/AI-for-Animals/animal-ethics-benchm
 !git clone "{repository_url}" anai
 ```
 
-2) Execute the following.
+2) Execute the following - first, for synthetic dataset (as specified - synthetic.json), then replace this with reddit dataset (reddit.json).
 
 ```
 from google.colab import drive, userdata
@@ -113,7 +113,9 @@ if __name__ == "__main__":
     main()
 ```
 
-3) Results in the generated csv files can be obtained and analysed via the following (adjust input paths in these scripts):
+3) Combine the obtained datasets and adjust tags either manually or via combine_synthetic_reddit.py script.
+   
+4) Results in the generated csv files can be obtained and analysed via the following (adjust input paths in these scripts):
 
 ```
 !python /content/anai/analysis_tags_stats_figures.py
