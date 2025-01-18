@@ -6,10 +6,10 @@ import pandas as pd
 import os
 
 # File paths - edit these as needed
-SYNTHETIC_PATH = 'synthetic.csv'
-REDDIT_PATH = 'reddit.csv'
-RESULTS_PATH = 'results_gpt-4o-mini-2024-07-18.csv'
-OUTPUT_PATH = 'combined.csv'  # Will be saved in the same directory as synthetic.csv
+SYNTHETIC_PATH = '/content/drive/MyDrive/eval_outputs/synthetic_gemini-1.5-flash-002.csv'
+REDDIT_PATH = '/content/drive/MyDrive/eval_outputs/reddit_gemini-1.5-flash-002.csv'
+RESULTS_PATH = '/content/drive/MyDrive/eval_outputs/results_gpt-4o-mini-2024-07-18.csv' # this is an example, which has the results in correct format
+OUTPUT_PATH = '/content/drive/MyDrive/eval_outputs/results_gemini-1.5-flash-002.csv'
 
 def combine_csvs():
     # Read the CSVs
@@ -17,47 +17,68 @@ def combine_csvs():
     reddit_df = pd.read_csv(REDDIT_PATH)
     results_df = pd.read_csv(RESULTS_PATH)
     
-    # Get number of columns from results file
+    print("\nInitial column counts:")
+    print(f"Synthetic columns: {len(synthetic_df.columns)}")
+    print(f"Reddit columns: {len(reddit_df.columns)}")
+    print(f"Results columns: {len(results_df.columns)}")
+    
+    # Get number of columns needed
     n_cols = len(results_df.columns)
     
-    # Trim synthetic and reddit dataframes to match results column count
-    synthetic_df = synthetic_df.iloc[:, :n_cols]
-    reddit_df = reddit_df.iloc[:, :n_cols]
+    # Store original synthetic columns and extend if needed
+    synthetic_columns = list(synthetic_df.columns)
+    while len(synthetic_columns) < n_cols:
+        synthetic_columns.append(f'dummy_{len(synthetic_columns)}')
     
-    # Combine synthetic and reddit (excluding reddit header)
+    # Add any missing columns to synthetic_df
+    for col in synthetic_columns:
+        if col not in synthetic_df.columns:
+            synthetic_df[col] = None
+            
+    # Ensure reddit_df has the same columns in the same order
+    for col in synthetic_columns:
+        if col not in reddit_df.columns:
+            reddit_df[col] = None
+    
+    # Reorder columns to match
+    synthetic_df = synthetic_df[synthetic_columns]
+    reddit_df = reddit_df[synthetic_columns]
+    
+    print("\nAfter adding dummy columns:")
+    print(f"Synthetic columns: {len(synthetic_df.columns)}")
+    print(f"Reddit columns: {len(reddit_df.columns)}")
+    
+    # Combine synthetic and reddit with explicit columns
     combined_df = pd.concat([synthetic_df, reddit_df], axis=0, ignore_index=True)
     
-    # Get the column names from synthetic (these will be our base column names)
-    final_columns = list(synthetic_df.columns)
+    print(f"\nCombined dataframe columns: {len(combined_df.columns)}")
     
-    # Override first column and last 4 columns with data from results
-    # First, ensure the combined_df has enough columns
-    while len(combined_df.columns) < len(results_df.columns):
-        combined_df[f'dummy_{len(combined_df.columns)}'] = None
-        
-    # Override first column
+    # Get the column names from results file for the columns we'll override
+    results_columns = list(results_df.columns)
+    
+    # Create final column list from synthetic, but replace first and last 4 with results
+    final_columns = synthetic_columns.copy()
+    final_columns[0] = results_columns[0]  # First column
+    final_columns[-4:] = results_columns[-4:]  # Last 4 columns
+    
+    print(f"Length of final_columns: {len(final_columns)}")
+    print(f"Length of combined_df columns: {len(combined_df.columns)}")
+    
+    # Override first column data
     combined_df.iloc[:, 0] = results_df.iloc[:, 0]
-    final_columns[0] = results_df.columns[0]  # Update column name
     
-    # Override last 4 columns
+    # Override last 4 columns data
     for i in range(-4, 0):
         combined_df.iloc[:, i] = results_df.iloc[:, i]
-        final_columns[i] = results_df.columns[i]  # Update column names
     
     # Set the final column names
     combined_df.columns = final_columns
     
     # Save the combined dataframe
-    output_dir = os.path.dirname(SYNTHETIC_PATH)
-    if output_dir:
-        output_path = os.path.join(output_dir, OUTPUT_PATH)
-    else:
-        output_path = OUTPUT_PATH
-        
-    combined_df.to_csv(output_path, index=False)
-    print(f"Combined CSV saved to: {output_path}")
+    combined_df.to_csv(OUTPUT_PATH, index=False)
+    print(f"\nCombined CSV saved to: {OUTPUT_PATH}")
     
-    # Print some validation info
+    # Print validation info
     print("\nValidation Information:")
     print(f"Number of rows from synthetic: {len(synthetic_df)}")
     print(f"Number of rows from reddit: {len(reddit_df)}")
