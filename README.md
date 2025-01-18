@@ -31,12 +31,12 @@ import pandas as pd
 
 # Configuration
 CONFIG = {
-    'model': "google/gemini-2.0-flash-exp",
-    'scorers': "anthropic/claude-3-5-haiku-20241022,google/gemini-2.0-flash-exp,openai/gpt-4o-mini-2024-07-18",
+    'model': "anthropic/claude-3-5-haiku-20241022",
+    'scorers': "anthropic/claude-3-5-sonnet-20241022,google/gemini-1.5-pro-002,openai/gpt-4o-2024-08-06",
     'dataset': "/content/anai/artifacts/synthetic.json",
-    'output_dir': "/content/drive/MyDrive/eval_outputs/synthetic/gemini-2.0-flash-exp",
-    'samples_per_batch': 100,
-    'num_batches': 30,
+    'output_dir': "/content/drive/MyDrive/eval_outputs/synthetic/claude-3-5-haiku-20241022",
+    'samples_per_batch': 50,
+    'num_batches': 50,
     'start_batch': 0,
     'temperature': 0.5,
     'seed': 42
@@ -113,8 +113,14 @@ if __name__ == "__main__":
     main()
 ```
 
+3) Results in the generated csv files can be obtained and analysed via the following (adjust input paths in these scripts):
 
-
+```
+!python /content/anai/analysis_tags_stats_figures.py
+!python /content/anai/tag_analysis.py --tags1 scenario-2 --tags2 scenario-3
+!python /content/anai/analysis_models_compare.py
+!python /content/anai/figures.py
+```
 
 
 Note that as of 7 Dec 2024 "/content/anai/artifacts/curated_v3.json" contains a total of 218 questions:
