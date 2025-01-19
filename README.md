@@ -118,6 +118,7 @@ if __name__ == "__main__":
 4) Results in the generated csv files can be obtained and analysed via the following (adjust input paths in these scripts):
 
 ```
+!python /content/anai/results_summary.py
 !python /content/anai/analysis_tags_stats_figures.py
 !python /content/anai/tag_analysis.py --tags1 scenario-2 --tags2 scenario-3
 !python /content/anai/analysis_models_compare.py
