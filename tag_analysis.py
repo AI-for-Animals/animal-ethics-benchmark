@@ -100,7 +100,28 @@ if __name__ == "__main__":
     # Use the same file paths as in the original script
     base_path = "/content/drive/MyDrive/eval_outputs"
     file_paths = [f"{base_path}/results_{model}.csv" for model in 
-                 ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']]
+                 ['claude-3-5-sonnet-20241022_run1',
+                 'claude-3-5-sonnet-20241022_run2',
+                 'claude-3-5-sonnet-20241022_run3',
+                 'claude-3-5-sonnet-20241022_run4',
+                 'claude-3-5-sonnet-20241022_run5', 
+                 'gemini-1.5-pro-002_run1',
+                 'gemini-1.5-pro-002_run2',
+                 'gemini-1.5-pro-002_run3',
+                 'gemini-1.5-pro-002_run4',
+                 'gemini-1.5-pro-002_run5', 
+                 'gpt-4o-2024-08-06_run1',
+                 'gpt-4o-2024-08-06_run2',
+                 'gpt-4o-2024-08-06_run3', 
+                 'gpt-4o-2024-08-06_run4',
+                 'gpt-4o-2024-08-06_run5',
+                 'claude-3-5-haiku-20241022',
+                 'gemini-1.5-flash-002',
+                 'gpt-4o-mini-2024-07-18',
+                 'DeepSeek-V3',
+                 'Llama-3.3-70B-Instruct-Turbo',
+                 'mistral-large-2411'
+                 ]]
     
     df = load_data(file_paths)
     
