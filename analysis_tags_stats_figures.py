@@ -65,18 +65,43 @@ def get_model_name_from_file(filename):
 
 def calculate_cluster_metrics(base_path):
     file_names = [
-        'results_claude-3-5-sonnet-20241022.csv',
-        'results_gemini-1.5-pro-002.csv',
-        'results_gpt-4o-2024-08-06.csv'
+        'results_claude-3-5-sonnet-20241022_run1.csv',
+        'results_claude-3-5-sonnet-20241022_run2.csv',
+        'results_claude-3-5-sonnet-20241022_run3.csv',
+        'results_claude-3-5-sonnet-20241022_run4.csv',
+        'results_claude-3-5-sonnet-20241022_run5.csv',
+        'results_gemini-1.5-pro-002_run1.csv',
+        'results_gemini-1.5-pro-002_run2.csv',
+        'results_gemini-1.5-pro-002_run3.csv',
+        'results_gemini-1.5-pro-002_run4.csv',
+        'results_gemini-1.5-pro-002_run5.csv',
+        'results_gpt-4o-2024-08-06_run1.csv',
+        'results_gpt-4o-2024-08-06_run2.csv',
+        'results_gpt-4o-2024-08-06_run3.csv',
+        'results_gpt-4o-2024-08-06_run4.csv',
+        'results_gpt-4o-2024-08-06_run5.csv',
+        'results_claude-3-5-haiku-20241022.csv',
+        'results_gemini-1.5-flash-002.csv',
+        'results_gpt-4o-mini-2024-07-18.csv',
+        'results_DeepSeek-V3.csv',
+        'results_Llama-3.3-70B-Instruct-Turbo.csv',
+        'results_mistral-large-2411.csv'
     ]
     num_models = len(file_names)
     tag_columns = ['tag1', 'tag2', 'tag3', 'tag4']
     all_results = {tag: {} for tag in tag_columns}
     
-    # Process each file
     for file_name in file_names:
         df = pd.read_csv(f"{base_path}/{file_name}")
-        score_cols = [col.replace('_answer', '_score') for col in df.columns if col.endswith('_answer')]
+        
+        # Identify all '_score' columns directly
+        score_cols = [col for col in df.columns if col.endswith('_score')]
+        
+        if not score_cols:
+            print(f"No _score columns found for {file_name}. Skipping.")
+            continue
+        
+        # Calculate the mean score for rows with valid '_score' columns
         df['mean_score'] = df[score_cols].mean(axis=1)
         
         for tag_col in tag_columns:
@@ -103,7 +128,7 @@ def calculate_cluster_metrics(base_path):
             
             # Add individual model results
             for file_name in file_names:
-                stats = file_stats[file_name]
+                stats = file_stats.get(file_name, {'mean': np.nan, 'std': np.nan})
                 model_name = get_model_name_from_file(file_name)
                 row[f'{model_name}_mean'] = stats['mean']
                 row[f'{model_name}_std'] = stats['std']
@@ -120,6 +145,7 @@ def calculate_cluster_metrics(base_path):
         plot_cluster_metrics(results[tag_col], tag_col, num_models)
     
     return results
+
 
 if __name__ == "__main__":
     base_path = "/content/drive/MyDrive/eval_outputs"
