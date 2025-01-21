@@ -37,7 +37,11 @@ def get_model_names(df):
 def load_model_data(model_files):
     """Load and combine data for each model, handling multiple files if present."""
     model_data = {}
+    observations_per_model = {}
     for model, files in model_files.items():
+        # Track total observations for this model
+        total_obs = 0
+        
         if len(files) == 1:
             # Single file case - load directly
             df = load_and_clean_data(files[0])
@@ -54,14 +58,18 @@ def load_model_data(model_files):
                 scores = [df[col].fillna(0) for df in dfs]  # Handle NaN values
                 df[col] = pd.concat(scores, axis=1).mean(axis=1)
         
+        # Count total observations
+        total_obs = len(df) * len(files)
+        
         # Normalize column names by removing company prefixes
         score_cols = [c for c in df.columns if c.endswith('_score')]
         rename_map = {col: normalize_model_name(col) for col in score_cols}
         df = df.rename(columns=rename_map)
         
         model_data[model] = df
+        observations_per_model[model] = total_obs
     
-    return model_data
+    return model_data, observations_per_model
 
 def compute_analytical_biases(model_data, models):
     """Calculate biases using analytical formulas."""
@@ -148,7 +156,7 @@ def compute_analytical_biases(model_data, models):
     
     return results
 
-def compute_comparison(data_A, data_B, tags=None, paired=False, clustered=False):
+def compute_comparison(data_A, data_B, n_files_A, n_files_B, tags=None, paired=False, clustered=False):
     """Calculate difference, standard error, 95% CI, p-value."""
     d_bar = np.mean(data_A) - np.mean(data_B)
     
@@ -187,7 +195,7 @@ def compute_comparison(data_A, data_B, tags=None, paired=False, clustered=False)
         'SE': se,
         '95% CI': (ci_low, ci_high),
         'p-value': p_val,
-        'N': len(data_A),
+        'N': len(data_A) * n_files_A,  # Total observations including all files
         '#Clusters': n_clusters
     }
 
@@ -203,7 +211,7 @@ def analyze_evaluation_results(base_path, models):
     model_files = get_model_files(base_path, models)
     
     # Load and combine data for each model
-    model_data = load_model_data(model_files)
+    model_data, observations_per_model = load_model_data(model_files)
     
     # Compute analytical biases
     bias_results = compute_analytical_biases(model_data, models)
@@ -239,7 +247,13 @@ def analyze_evaluation_results(base_path, models):
             dB = score_arrays[j]
             tA = tags_arrays[i] if clustered else None
             
-            stats = compute_comparison(dA, dB, tags=tA, paired=paired, clustered=clustered)
+            # Get number of files for each model
+            n_files_A = len(model_files[models[i]])
+            n_files_B = len(model_files[models[j]])
+            
+            stats = compute_comparison(dA, dB, n_files_A, n_files_B, 
+                                    tags=tA, paired=paired, clustered=clustered)
+            
             row = {
                 'Model 1': models[i],
                 'Model 2': models[j],
