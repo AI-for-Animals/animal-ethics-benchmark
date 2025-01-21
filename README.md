@@ -1,4 +1,4 @@
-# ANAI v5 (2025-01-09 update by Arturs Kanepajs)
+# ANAI v5.1 (2025-01-21 update by Arturs Kanepajs)
 
 To get detailed results for multiple LLMs, prerequisites:
 - A Google Colab account 
@@ -10,6 +10,7 @@ To get detailed results for multiple LLMs, prerequisites:
 ```
 # Get token from environment and use it
 from google.colab import userdata
+from google.colab import drive
 import os
 
 # Retrieve GitHub personal access token
@@ -20,6 +21,10 @@ repository_url = "https://{token}@github.com/AI-for-Animals/animal-ethics-benchm
 
 # Clone the repository using the token for authentication into the "anai" folder
 !git clone "{repository_url}" anai
+
+# Mount Google Drive
+drive.mount('/content/drive')
+
 ```
 
 2) Execute the following - first, for synthetic dataset (as specified - synthetic.json), then replace this with reddit dataset (reddit.json).
