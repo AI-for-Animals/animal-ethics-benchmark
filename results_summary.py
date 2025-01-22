@@ -228,35 +228,126 @@ def process_files(directory):
 
     return df_res, vis
 
+def sort_models(vis_data):
+    """Sort models according to specified ordering."""
+    judges = ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']
+    
+    # Split data into categories
+    judge_data = []
+    claude_data = []
+    gemini_data = []
+    gpt_data = []
+    other_data = []
+    
+    for d in vis_data:
+        model = d["model"]
+        if model in judges:
+            judge_data.append((judges.index(model), d))  # Keep judge order
+        elif model.startswith("claude"):
+            claude_data.append((model, d))
+        elif model.startswith("gemini"):
+            gemini_data.append((model, d))
+        elif model.startswith("gpt"):
+            gpt_data.append((model, d))
+        else:
+            other_data.append((model, d))
+    
+    # Sort each category
+    sorted_data = (
+        [d for _, d in sorted(judge_data, key=lambda x: x[0])] +  # Judges in specified order
+        [d for _, d in sorted(claude_data, key=lambda x: x[0])] +  # Other claude alphabetically
+        [d for _, d in sorted(gemini_data, key=lambda x: x[0])] +  # Other gemini alphabetically
+        [d for _, d in sorted(gpt_data, key=lambda x: x[0])] +     # Other gpt alphabetically
+        [d for _, d in sorted(other_data, key=lambda x: x[0])]     # Rest alphabetically
+    )
+    
+    return sorted_data
+
 def plot_results(vis_data, save_path):
+    """Plot results with models in specified order."""
+    sorted_data = sort_models(vis_data)
+    
     plt.figure(figsize=(12,6))
-    x = np.arange(len(vis_data))
-    sc = [d["score"] for d in vis_data]
-    col = [d["color"] for d in vis_data]
-    yerr = np.array([[d["score"]-d["ci_lower"] for d in vis_data],
-                     [d["ci_upper"]-d["score"] for d in vis_data]])
+    x = np.arange(len(sorted_data))
+    sc = [d["score"] for d in sorted_data]
+    col = [d["color"] for d in sorted_data]
+    yerr = np.array([[d["score"]-d["ci_lower"] for d in sorted_data],
+                     [d["ci_upper"]-d["score"] for d in sorted_data]])
+    
     bars = plt.bar(x, sc, color=col)
     plt.errorbar(x, sc, yerr=yerr, fmt='none', ecolor='gray', capsize=5)
+    
     for b in bars:
         h = b.get_height()
         plt.text(b.get_x()+b.get_width()/2., h, f"{h:.3f}", ha='center', va='bottom')
+    
     plt.xlabel("Model")
     plt.ylabel("Average Score")
-    plt.xticks(x, [d["model"] for d in vis_data], rotation=45, ha='right')
+    plt.xticks(x, [d["model"] for d in sorted_data], rotation=45, ha='right')
     plt.tight_layout()
     plt.savefig(save_path, bbox_inches='tight', dpi=300)
-    print(f"\nFigure saved to: {os.path.abspath(save_path)}")
     plt.close()
+
+def plot_model_subset(vis_data, save_path, filter_func):
+    """Plot a subset of models based on filter function."""
+    subset_data = [d for d in vis_data if filter_func(d["model"])]
+    if subset_data:  # Only plot if we have data
+        sorted_data = sort_models(subset_data)
+        
+        plt.figure(figsize=(12,6))
+        x = np.arange(len(sorted_data))
+        sc = [d["score"] for d in sorted_data]
+        col = [d["color"] for d in sorted_data]
+        yerr = np.array([[d["score"]-d["ci_lower"] for d in sorted_data],
+                        [d["ci_upper"]-d["score"] for d in sorted_data]])
+        
+        bars = plt.bar(x, sc, color=col)
+        plt.errorbar(x, sc, yerr=yerr, fmt='none', ecolor='gray', capsize=5)
+        
+        for b in bars:
+            h = b.get_height()
+            plt.text(b.get_x()+b.get_width()/2., h, f"{h:.3f}", ha='center', va='bottom')
+        
+        plt.xlabel("Model")
+        plt.ylabel("Average Score")
+        plt.xticks(x, [d["model"] for d in sorted_data], rotation=45, ha='right')
+        plt.tight_layout()
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        plt.close()
 
 def main(dir_, save_path="results_plot.png"):
     pd.set_option("display.max_columns", None)
     pd.set_option("display.width", 1000)
     pd.set_option("display.max_colwidth", None)
     pd.set_option("display.max_rows", None)
+    
     df, vis = process_files(dir_)
     print("\nLLM-as-a-Judge scores with pooled runs. 95% c.i. in brackets.\n")
     print(df)
+    
+    # Main plot with all models
     plot_results(vis, save_path)
+    
+    # Define judges list
+    judges = ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']
+    
+    # Plot judges only
+    plot_model_subset(vis, "proprietary_large.png", 
+                     lambda m: m in judges)
+    
+    # Plot other proprietary models
+    plot_model_subset(vis, "proprietary_compact.png", 
+                     lambda m: m not in judges and 
+                     (m.startswith("claude") or 
+                      m.startswith("gemini") or 
+                      m.startswith("gpt")))
+    
+    # Plot open models
+    plot_model_subset(vis, "open.png", 
+                     lambda m: m not in judges and 
+                     not (m.startswith("claude") or 
+                          m.startswith("gemini") or 
+                          m.startswith("gpt")))
 
 if __name__ == "__main__":
     main("/content/drive/MyDrive/eval_outputs/")
