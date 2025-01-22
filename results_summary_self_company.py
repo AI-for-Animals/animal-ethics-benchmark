@@ -8,14 +8,12 @@ def get_model_color(name):
     return next((v for k,v in colors.items() if k in name.lower()), '#757575')
 
 def get_score_column(df, model):
-    fully_qualified = {
+    qualified = {
         'claude-3-5-sonnet-20241022': 'anthropic/claude-3-5-sonnet-20241022_score',
         'gemini-1.5-pro-002': 'google/gemini-1.5-pro-002_score',
         'gpt-4o-2024-08-06': 'openai/gpt-4o-2024-08-06_score'
     }
-    if model in fully_qualified:
-        return fully_qualified[model]
-    return next((col for col in df.columns if 'score' in col.lower() and model in col), None)
+    return qualified.get(model) or next((col for col in df.columns if 'score' in col.lower() and model in col), None)
 
 def get_related_judge(model):
     relations = {
@@ -26,42 +24,22 @@ def get_related_judge(model):
     return relations.get(model)
 
 def compute_stats(scores, K=1):
-    """
-    Computes the mean and the standard error (for 95% c.i. use 1.96*se).
-
-    If scores is a list of arrays (one array per run), we:
-      - average across the dimension for each question,
-      - then average across questions,
-      - then use sqrt((1+2/K)/3)*base_se for repeated runs if K>1.
-
-    If scores is a single array, we do normal mean & SE.
-
-    For K=1, uses within-sample variation (the variation across questions).
-    """
     if isinstance(scores[0], (list, np.ndarray)):
         scores = np.array(scores)
         means = np.mean(scores, axis=0)
         n_questions = len(means)
-
-        if K == 1:
-            mean_val = np.mean(means)
-            if n_questions < 2:
-                se_val = 0.0
-            else:
-                se_val = np.std(means, ddof=1) / np.sqrt(n_questions)
-            return mean_val, se_val
-
+        
         mean_val = np.mean(means)
         if n_questions < 2:
-            base_se = 0.0
+            se_val = 0.0
         else:
-            base_se = np.std(means, ddof=1) / np.sqrt(n_questions)
-        return mean_val, base_se * np.sqrt((1 + 2/K)/3)
-
+            se_val = np.std(means, ddof=1) / np.sqrt(n_questions)
+            if K > 1:
+                se_val *= np.sqrt((1 + 2/K)/3)
+        return mean_val, se_val
+    
     n_points = len(scores)
-    if n_points < 2:
-        return np.mean(scores), 0.0
-    return np.mean(scores), np.std(scores, ddof=1) / np.sqrt(n_points)
+    return np.mean(scores), 0.0 if n_points < 2 else np.std(scores, ddof=1) / np.sqrt(n_points)
 
 def format_stats(mean, se):
     ci = 1.96 * se
@@ -96,26 +74,11 @@ def process_files(directory):
     res = {}
 
     def get_adjusted_scores(df, model, judge_scores=None):
-        """
-        For a judge model, combine:
-          - The scores the judge receives from other judges (in 'df'),
-          - The scores the judge gives (judge_scores).
-        For a related model, combine:
-          - The scores from other official judges,
-          - The "gives" from the model that is related_judge(...) etc.
-        """
         if model in judges:
             other = [x for x in judges if x != model]
             rec = [df[get_score_column(df, oj)].values for oj in other if get_score_column(df, oj)]
-
-            if judge_scores is not None and len(judge_scores) > 0:
-                giv = judge_scores
-            else:
-                giv = []
-
-            if not rec or not len(giv):
-                return None
-            return (np.sum(rec, axis=0) + giv) / len(judges)
+            giv = judge_scores if judge_scores is not None else []
+            return (np.sum(rec, axis=0) + giv) / len(judges) if rec and len(giv) else None
         
         if related_judge := get_related_judge(model):
             other = [x for x in judges if x != related_judge]
@@ -128,10 +91,7 @@ def process_files(directory):
                         df2 = pd.read_csv(next(iter(d[related_model].values())))
                         if bc := get_score_column(df2, related_judge):
                             related_scores.append(df2[bc].values)
-            if not rec or not related_scores:
-                return None
-            return (np.sum(rec, axis=0) + np.mean(related_scores, axis=0)) / len(judges)
-
+            return (np.sum(rec, axis=0) + np.mean(related_scores, axis=0)) / len(judges) if rec and related_scores else None
         return None
 
     for base_model, runs in d.items():
@@ -139,7 +99,6 @@ def process_files(directory):
         df_first = pd.read_csv(next(iter(runs.values())))
         n_questions = len(df_first)
 
-        # Collect raw (unadjusted) scores across runs
         all_scores = []
         for fpath_ in runs.values():
             df_ = pd.read_csv(fpath_)
@@ -147,13 +106,9 @@ def process_files(directory):
             if jcols:
                 all_scores.append(np.mean([df_[c].values for c in jcols], axis=0))
         mean, se = compute_stats(all_scores, K)
-
-        # Possibly compute adjusted + difference
         adj_mean, adj_se = mean, se
         diff_mean, diff_se = np.nan, np.nan
 
-        # We'll collect run-by-run adjusted if multiple runs,
-        # or do a single-run approach (like snippet) for K=1.
         if base_model in judges or get_related_judge(base_model):
             if K > 1:
                 adj_scores_per_run = []
@@ -173,78 +128,44 @@ def process_files(directory):
                                 df2 = pd.read_csv(d[oj][run_id])
                                 if bc := get_score_column(df2, base_model):
                                     judge_scores_arrays.append(df2[bc].values)
-                        if judge_scores_arrays:
-                            combined_judge_scores = np.mean(judge_scores_arrays, axis=0)
-                        else:
-                            combined_judge_scores = None
-
+                        combined_judge_scores = np.mean(judge_scores_arrays, axis=0) if judge_scores_arrays else None
                         adj = get_adjusted_scores(df_, base_model, judge_scores=combined_judge_scores)
-                        if adj is not None:
-                            adj_scores_per_run.append(adj)
                     else:
-                        # related_judge path
                         adj = get_adjusted_scores(df_, base_model)
-                        if adj is not None:
-                            adj_scores_per_run.append(adj)
+                    
+                    if adj is not None:
+                        adj_scores_per_run.append(adj)
 
                 if adj_scores_per_run and len(adj_scores_per_run) == K:
                     adj_mean, adj_se = compute_stats(adj_scores_per_run, K)
-                    # difference: (raw - adjusted) * #judges
-                    diffs = []
-                    for i in range(K):
-                        run_diff = (raw_scores_per_run[i] - adj_scores_per_run[i]) * len(judges)
-                        diffs.append(np.mean(run_diff))
-                    diff_mean, diff_se = compute_stats(diffs, K)
-                else:
-                    # partial or no adjustments => we won't override
-                    adj_mean, adj_se = mean, se
-                    diff_mean, diff_se = np.nan, np.nan
+                    diffs = [(raw_scores_per_run[i] - adj_scores_per_run[i]) * len(judges) for i in range(K)]
+                    diff_mean, diff_se = compute_stats([np.mean(d) for d in diffs], K)
 
             else:
-                # Single-run scenario => do question-level difference
-                # Just replicate snippet logic
                 fpath_single = next(iter(runs.values()))
                 df_single = pd.read_csv(fpath_single)
-                adj_scores = None
-
-                # If base_model is a judge, gather judge_scores from the other judges in the same run
+                
                 if base_model in judges:
                     other_judges = [x for x in judges if x != base_model]
                     judge_scores_arrays = []
                     for oj in other_judges:
-                        if oj in d and '1' in d[oj]:  # we assume run='1' or same run_id
+                        if oj in d and '1' in d[oj]:
                             if fpath_single_oj := d[oj].get('1'):
                                 df2 = pd.read_csv(fpath_single_oj)
                                 if bc := get_score_column(df2, base_model):
                                     judge_scores_arrays.append(df2[bc].values)
-                    if judge_scores_arrays:
-                        combined_judge_scores = np.mean(judge_scores_arrays, axis=0)
-                    else:
-                        combined_judge_scores = None
-
+                    combined_judge_scores = np.mean(judge_scores_arrays, axis=0) if judge_scores_arrays else None
                     adj_scores = get_adjusted_scores(df_single, base_model, judge_scores=combined_judge_scores)
                 else:
-                    # related judge single-run
                     adj_scores = get_adjusted_scores(df_single, base_model)
 
                 if adj_scores is not None:
-                    # question-level array => compute stats
                     adj_mean, adj_se = compute_stats([adj_scores])
-                    # difference => (raw - adj)*#judges
-                    # all_scores[0] is the single-run raw
                     diffs = (all_scores[0] - adj_scores) * len(judges)
                     diff_mean, diff_se = compute_stats([diffs])
-                else:
-                    adj_mean, adj_se = mean, se
-                    diff_mean, diff_se = np.nan, np.nan
 
-        row_dict = {
-            "completions": K,
-            "n": K * n_questions,
-        }
+        row_dict = {"completions": K, "n": K * n_questions}
 
-        # Also store per-judge raw stats
-        # from the first df for convenience
         for j in judges:
             col_j = get_score_column(df_first, j)
             if col_j:
@@ -258,131 +179,71 @@ def process_files(directory):
                     row_dict[j] = format_stats(jm, js)
 
         row_dict["Unadjusted Average Score"] = format_stats(mean, se)
-
-        # If it's a judge => self preference
-        if base_model in judges:
-            row_dict["Average Score"] = format_stats(adj_mean, adj_se)
-            row_dict["Self-Preference"] = format_stats(diff_mean, diff_se)
-
-        # If it's a related judge => company preference
-        elif get_related_judge(base_model):
-            row_dict["Average Score"] = format_stats(adj_mean, adj_se)
-            row_dict["Company Preference"] = format_stats(diff_mean, diff_se)
-
-        # Otherwise => no preference
-        else:
-            row_dict["Average Score"] = format_stats(mean, se)
-            row_dict["Company Preference"] = "NaN"
-
+        row_dict["Average Score"] = format_stats(adj_mean, adj_se)
+        row_dict["Company Preference" if get_related_judge(base_model) else "Self-Preference" if base_model in judges else "Company Preference"] = format_stats(diff_mean, diff_se) if not np.isnan(diff_mean) else "NaN"
         res[base_model] = row_dict
 
     df_res = pd.DataFrame(res).T
+    df_res = df_res.reindex(sort_by_category(df_res.index, judges))
 
-    judges = ['claude-3-5-sonnet-20241022','gemini-1.5-pro-002','gpt-4o-2024-08-06']
-    sorted_idx = sort_by_category(df_res.index, judges)
-    df_res = df_res.reindex(sorted_idx)
-
-    # Weighted averages
     def parse_stats_str(stat_str):
-        """
-        parse "mean (low, high)" => return (mean, se).
-        If non-string or "NaN", returns (None, None).
-        """
-        if not isinstance(stat_str, str):
+        if not isinstance(stat_str, str) or stat_str == "NaN":
             return None, None
-        if stat_str == "NaN":
-            return None, None
-
         nums = re.findall(r"(-?\d+\.\d+)", stat_str)
-        if len(nums) == 3:
-            mean_ = float(nums[0])
-            low_ = float(nums[1])
-            high_ = float(nums[2])
-            se_ = (high_ - mean_)/1.96
-            return mean_, se_
-        return None, None
+        return (float(nums[0]), (float(nums[2]) - float(nums[0]))/1.96) if len(nums) == 3 else (None, None)
 
     big_n = df_res["n"].sum()
     weighted_avgs = {}
     for col in df_res.columns:
         if col in ["completions", "n"]:
             continue
-
         points = []
         for idx, row_ in df_res.iterrows():
-            if idx == "Weighted Average":
-                continue
-            val = row_.get(col, "NaN")
-            m_, se_ = parse_stats_str(val)
-            if m_ is not None and se_ is not None:
-                points.append((row_["n"], m_, se_))
-        if not points:
+            if idx != "Weighted Average":
+                m_, se_ = parse_stats_str(row_.get(col, "NaN"))
+                if m_ is not None and se_ is not None:
+                    points.append((row_["n"], m_, se_))
+        if points:
+            wmean = sum(n_ * m_ for n_, m_, _ in points) / big_n
+            wse = np.sqrt(sum((n_**2)*(sev**2) for n_, _, sev in points)) / big_n
+            weighted_avgs[col] = format_stats(wmean, wse)
+        else:
             weighted_avgs[col] = "NaN"
-            continue
-
-        wmean = sum(n_ * m_ for n_, m_, _ in points) / big_n
-        wse = np.sqrt(sum((n_**2)*(sev**2) for n_, _, sev in points)) / big_n
-        weighted_avgs[col] = format_stats(wmean, wse)
 
     df_res.loc["Weighted Average"] = {"completions": "", "n": big_n, **weighted_avgs}
     return df_res
 
 def plot_models_from_df(df_res, save_path, subset_func=None, rotation=45, title=""):
-    """
-    Plot from the 'Average Score' column for each model.
-    """
     data_for_plot = []
     judges = ['claude-3-5-sonnet-20241022','gemini-1.5-pro-002','gpt-4o-2024-08-06']
 
     def parse_stats_str(stat_str):
-        if not isinstance(stat_str, str):
+        if not isinstance(stat_str, str) or stat_str == "NaN":
             return None, None, None
-        if stat_str == "NaN":
-            return None, None, None
-
         nums = re.findall(r"(-?\d+\.\d+)", stat_str)
-        if len(nums) == 3:
-            mean_ = float(nums[0])
-            low_ = float(nums[1])
-            high_ = float(nums[2])
-            return mean_, low_, high_
-        return None, None, None
+        return (float(nums[0]), float(nums[1]), float(nums[2])) if len(nums) == 3 else (None, None, None)
 
     for idx, row in df_res.iterrows():
-        if idx == "Weighted Average":
-            continue
-        if subset_func and not subset_func(idx):
-            continue
-
-        avg_str = row.get("Average Score", "NaN")
-        mean_, low_, high_ = parse_stats_str(avg_str)
-        if mean_ is not None:
-            color_ = get_model_color(idx)
-            data_for_plot.append({
-                "model": idx,
-                "score": mean_,
-                "ci_lower": low_,
-                "ci_upper": high_,
-                "color": color_
-            })
+        if idx != "Weighted Average" and (not subset_func or subset_func(idx)):
+            mean_, low_, high_ = parse_stats_str(row.get("Average Score", "NaN"))
+            if mean_ is not None:
+                data_for_plot.append({
+                    "model": idx,
+                    "score": mean_,
+                    "ci_lower": low_,
+                    "ci_upper": high_,
+                    "color": get_model_color(idx)
+                })
 
     sorted_data = sort_by_category(data_for_plot, judges, key_func=lambda x: x["model"])
-
     plt.figure(figsize=(14,8))
     plt.rcParams.update({'font.size': 14})
     x = np.arange(len(sorted_data))
     plt.bar(x, [d["score"] for d in sorted_data], color=[d["color"] for d in sorted_data])
-    plt.errorbar(
-        x,
-        [d["score"] for d in sorted_data],
-        yerr=[
-            [d["score"] - d["ci_lower"] for d in sorted_data],
-            [d["ci_upper"] - d["score"] for d in sorted_data]
-        ],
-        fmt='none',
-        ecolor='gray',
-        capsize=5
-    )
+    plt.errorbar(x, [d["score"] for d in sorted_data],
+                yerr=[[d["score"] - d["ci_lower"] for d in sorted_data],
+                      [d["ci_upper"] - d["score"] for d in sorted_data]],
+                fmt='none', ecolor='gray', capsize=5)
     plt.grid(False)
     plt.xticks(x, [d["model"] for d in sorted_data], rotation=rotation,
                ha='right' if rotation == 45 else 'center')
@@ -406,24 +267,24 @@ def main(dir_, save_path="results_plot.png"):
     plot_models_from_df(df_res, main_path, subset_func=None, rotation=45, title="All Models")
     print(f"main: {main_path}")
 
-    judges = ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']
+    judges = ['claude-3-5-sonnet-20241022','gemini-1.5-pro-002','gpt-4o-2024-08-06']
     path_judges = os.path.abspath("proprietary_large.png")
     plot_models_from_df(df_res, path_judges, subset_func=lambda m: m in judges,
-                        rotation=0, title="Judges Only")
+                       rotation=0, title="Judges Only")
     print(f"judges: {path_judges}")
 
     path_prop = os.path.abspath("proprietary_compact.png")
     plot_models_from_df(df_res, path_prop,
-                        subset_func=lambda m: (m not in judges and
-                                               m.startswith(('claude','gemini','gpt'))),
-                        rotation=0, title="Proprietary Non-Judge Models")
+                       subset_func=lambda m: (m not in judges and
+                                           m.startswith(('claude','gemini','gpt'))),
+                       rotation=0, title="Proprietary Non-Judge Models")
     print(f"proprietary: {path_prop}")
 
     path_open = os.path.abspath("open.png")
     plot_models_from_df(df_res, path_open,
-                        subset_func=lambda m: (m not in judges and
-                                               not m.startswith(('claude','gemini','gpt'))),
-                        rotation=0, title="Open Models")
+                       subset_func=lambda m: (m not in judges and
+                                           not m.startswith(('claude','gemini','gpt'))),
+                       rotation=0, title="Open Models")
     print(f"open: {path_open}")
 
 if __name__ == "__main__":
