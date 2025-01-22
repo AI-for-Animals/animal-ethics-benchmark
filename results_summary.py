@@ -267,7 +267,9 @@ def plot_results(vis_data, save_path):
     """Plot results with models in specified order."""
     sorted_data = sort_models(vis_data)
     
-    plt.figure(figsize=(12,6))
+    plt.figure(figsize=(14,8))  # Increased figure size
+    plt.rcParams.update({'font.size': 14})  # Base font size
+    
     x = np.arange(len(sorted_data))
     sc = [d["score"] for d in sorted_data]
     col = [d["color"] for d in sorted_data]
@@ -276,15 +278,13 @@ def plot_results(vis_data, save_path):
     
     bars = plt.bar(x, sc, color=col)
     plt.errorbar(x, sc, yerr=yerr, fmt='none', ecolor='gray', capsize=5)
+    plt.grid(False)
     
-    for b in bars:
-        h = b.get_height()
-        plt.text(b.get_x()+b.get_width()/2., h, f"{h:.3f}", ha='center', va='bottom')
+    plt.xticks(x, [d["model"] for d in sorted_data], rotation=45, ha='right', fontsize=14)
+    plt.yticks(fontsize=14)  # Larger font for y-axis ticks
     
-    plt.xlabel("Model")
-    plt.ylabel("Average Score")
-    plt.xticks(x, [d["model"] for d in sorted_data], rotation=45, ha='right')
-    plt.tight_layout()
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout(pad=1.2)
     plt.savefig(save_path, bbox_inches='tight', dpi=300)
     plt.close()
 
@@ -294,7 +294,9 @@ def plot_model_subset(vis_data, save_path, filter_func):
     if subset_data:  # Only plot if we have data
         sorted_data = sort_models(subset_data)
         
-        plt.figure(figsize=(12,6))
+        plt.figure(figsize=(14,8))  # Increased figure size
+        plt.rcParams.update({'font.size': 14})  # Base font size
+        
         x = np.arange(len(sorted_data))
         sc = [d["score"] for d in sorted_data]
         col = [d["color"] for d in sorted_data]
@@ -303,15 +305,13 @@ def plot_model_subset(vis_data, save_path, filter_func):
         
         bars = plt.bar(x, sc, color=col)
         plt.errorbar(x, sc, yerr=yerr, fmt='none', ecolor='gray', capsize=5)
+        plt.grid(False)
         
-        for b in bars:
-            h = b.get_height()
-            plt.text(b.get_x()+b.get_width()/2., h, f"{h:.3f}", ha='center', va='bottom')
+        plt.xticks(x, [d["model"] for d in sorted_data], rotation=0, fontsize=14)  # Horizontal labels
+        plt.yticks(fontsize=14)  # Larger font for y-axis ticks
         
-        plt.xlabel("Model")
-        plt.ylabel("Average Score")
-        plt.xticks(x, [d["model"] for d in sorted_data], rotation=45, ha='right')
-        plt.tight_layout()
+        # Adjust layout to prevent label cutoff
+        plt.tight_layout(pad=1.2)
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
         plt.close()
 
