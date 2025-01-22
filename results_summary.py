@@ -1,7 +1,4 @@
-import pandas as pd
-import glob
-import os
-import numpy as np
+import pandas as pd, glob, os, numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import re
@@ -11,127 +8,88 @@ def get_model_color(name):
     return next((v for k,v in colors.items() if k in name.lower()), '#757575')
 
 def get_score_column(df, model):
-    pref = {
-        'claude-3-5-sonnet-20241022': 'anthropic/',
-        'gemini-1.5-pro-002': 'google/',
-        'gpt-4o-2024-08-06': 'openai/'
-    }
-    if model in pref:
-        c = f"{pref[model]}{model}_score"
-        if c in df.columns: return c
-    b = f"{model}_score"
-    if b in df.columns: return b
-    for col in df.columns:
-        if 'score' in col.lower() and model in col:
-            return col
-    return None
+    pref = {'claude-3-5-sonnet-20241022': 'anthropic/','gemini-1.5-pro-002': 'google/','gpt-4o-2024-08-06': 'openai/'}
+    if model in pref and (c := f"{pref[model]}{model}_score") in df.columns: return c
+    if (b := f"{model}_score") in df.columns: return b
+    return next((col for col in df.columns if 'score' in col.lower() and model in col), None)
 
 def parse_mean_se(val):
-    """Parse a string like '0.123 (0.111, 0.135)' → (0.123, standard_error). Otherwise return (nan,nan)."""
     if val=="NaN": return np.nan,np.nan
-    match = re.match(r'([\-\d\.]+)\s*\(([\-\d\.]+),\s*([\-\d\.]+)\)', str(val))
-    if match:
-        mv,lv,uv = float(match.group(1)), float(match.group(2)), float(match.group(3))
+    if match := re.match(r'([\-\d\.]+)\s*\(([\-\d\.]+),\s*([\-\d\.]+)\)', str(val)):
+        mv,lv,uv = map(float, match.groups())
         return mv, (uv - mv)/1.96
-    try:
-        return float(val), np.nan
-    except:
-        return np.nan, np.nan
+    try: return float(val), np.nan
+    except: return np.nan, np.nan
 
 def compute_stats_with_resampling(scores_per_run, K):
-    """
-    Compute mean and SE following paper's methodology.
-    Args:
-        scores_per_run: List of arrays, each containing scores for one run
-        K: Number of runs (resamples)
-    """
     if K == 1:
         scores = scores_per_run[0]
-        mean = np.mean(scores)
-        se = np.std(scores, ddof=1) / np.sqrt(len(scores))
-    else:
-        # Convert to numpy for easier manipulation
-        scores = np.array(scores_per_run)  # Shape: (K, n_questions)
-        
-        # First average K samples for each question
-        question_means = np.mean(scores, axis=0)
-        
-        # Compute overall mean and SE
-        mean = np.mean(question_means)
-        base_se = np.std(question_means, ddof=1) / np.sqrt(len(question_means))
-        
-        # Apply variance reduction factor from paper
-        reduction_factor = np.sqrt((1 + 2/K)/3)
-        se = base_se * reduction_factor
-    
-    return mean, se
+        return np.mean(scores), np.std(scores, ddof=1) / np.sqrt(len(scores))
+    scores = np.array(scores_per_run)
+    question_means = np.mean(scores, axis=0)
+    mean, base_se = np.mean(question_means), np.std(question_means, ddof=1) / np.sqrt(len(question_means))
+    return mean, base_se * np.sqrt((1 + 2/K)/3)
+
+def sort_models_df(df):
+    judges = ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']
+    categories = defaultdict(list)
+    for idx in df.index:
+        if idx == "Weighted Average": continue
+        if idx in judges: categories['judge'].append((judges.index(idx), idx))
+        elif any(idx.startswith(p) for p in ['claude', 'gemini', 'gpt']):
+            categories[idx.split('-')[0]].append((idx, idx))
+        else: categories['other'].append((idx, idx))
+    sorted_indices = [idx for _, idx in sorted(categories['judge'])]
+    for k in ['claude', 'gemini', 'gpt', 'other']:
+        sorted_indices.extend(idx for _, idx in sorted(categories[k]))
+    return df.reindex(sorted_indices + ["Weighted Average"])
 
 def process_files(directory):
     d = defaultdict(lambda: defaultdict(list))
     for f in glob.glob(os.path.join(directory,'results_*.csv')):
         base = os.path.basename(f).replace('results_','').replace('.csv','')
-        if '_run' in base:
-            *m, r = base.split('_run')
-            model = '_run'.join(m)
-            d[model][r].append(f)
-        else:
-            d[base]['1'].append(f)
+        *m, r = base.split('_run') if '_run' in base else (base, '1')
+        d['_run'.join(m)][r].append(f)
     d = {m:dict(runs) for m,runs in d.items()}
-
+    
     judges = ['claude-3-5-sonnet-20241022','gemini-1.5-pro-002','gpt-4o-2024-08-06']
     res, vis = {}, []
 
     for base_model, runs in d.items():
-        raw_scores_per_judge = defaultdict(list)  # Store all scores per judge across runs
+        raw_scores_per_judge = defaultdict(list)
         raw_avg, adj_avg = [], []
-        
         K = len(runs)
         first_df = pd.read_csv(next(iter(runs.values()))[0])
         n_questions = len(first_df)
         
-        # Collect scores across runs
         for run, files in runs.items():
             df = pd.read_csv(files[0])
             for j in judges:
-                col = get_score_column(df, j)
-                if col:
+                if col := get_score_column(df, j):
                     raw_scores_per_judge[j].append(df[col].values)
             
-            # Calculate raw and adjusted averages for this run
             jcols = [get_score_column(df,j) for j in judges if get_score_column(df,j)]
             raw_avg.append(np.mean([df[c].mean() for c in jcols]))
             
             if base_model in judges:
                 other = [x for x in judges if x!=base_model]
-                rec,giv=[],[]
-                for oj in other:
-                    c = get_score_column(df,oj)
-                    if c: rec.append(df[c].mean())
+                rec = [df[c].mean() for oj in other if (c := get_score_column(df,oj))]
+                giv = []
                 for oj in other:
                     if oj in d and run in d[oj]:
                         df2 = pd.read_csv(d[oj][run][0])
-                        bc = get_score_column(df2, base_model)
-                        if bc: giv.append(df2[bc].mean())
-                adj = np.nan
-                if rec and giv:
-                    h = np.mean(giv)
-                    adj = (sum(rec)+h)/(len(other)+1)
-                adj_avg.append(adj)
+                        if bc := get_score_column(df2, base_model):
+                            giv.append(df2[bc].mean())
+                adj_avg.append((sum(rec) + np.mean(giv))/(len(other)+1) if rec and giv else np.nan)
             else:
                 adj_avg.append(np.nan)
 
-        # Compute overall stats with proper resampling
-        perjudge = {}
-        for j in judges:
-            if j in raw_scores_per_judge:
-                scores = raw_scores_per_judge[j]
-                if scores:
-                    mm, st = compute_stats_with_resampling(scores, K)
-                    if not np.isnan(mm):
-                        ci_j = 1.96 * st
-                        perjudge[j] = f"{mm:.3f} ({mm - ci_j:.3f}, {mm + ci_j:.3f})"
+        perjudge = {j: f"{mm:.3f} ({mm - 1.96*st:.3f}, {mm + 1.96*st:.3f})"
+                    for j in judges if j in raw_scores_per_judge 
+                    and (scores := raw_scores_per_judge[j])
+                    and not np.isnan(mm := compute_stats_with_resampling(scores, K)[0])
+                    and not np.isnan(st := compute_stats_with_resampling(scores, K)[1])}
 
-        # Calculate unadjusted average with proper resampling
         all_scores = [np.mean([df[c].values for c in jcols], axis=0) 
                      for run, files in runs.items() 
                      for df in [pd.read_csv(files[0])]
@@ -147,170 +105,96 @@ def process_files(directory):
             "Unadjusted Average Score": f"{unmean:.3f} ({unmean - ci:.3f}, {unmean + ci:.3f})"
         }
 
-        if base_model in judges:
-            val = [x for x in adj_avg if not np.isnan(x)]
-            if val:
-                # Compute adjusted average with proper resampling
-                am, se_a = compute_stats_with_resampling([np.array(val)], K)
-                ci_a = 1.96 * se_a
-                res[base_model]["Average Score"] = f"{am:.3f} ({am - ci_a:.3f}, {am + ci_a:.3f})"
-                
-                # Compute self-preference with proper resampling
-                n_j = len(judges)
-                diffs = []
-                for i in range(K):
-                    if not np.isnan(adj_avg[i]):
-                        diffs.append((raw_avg[i] - adj_avg[i]) * n_j)
-                if diffs:
-                    sp_m, sp_s = compute_stats_with_resampling([np.array(diffs)], K)
-                    sp_ci = 1.96 * sp_s
-                    res[base_model]["Self-Preference"] = f"{sp_m:.3f} ({sp_m - sp_ci:.3f}, {sp_m + sp_ci:.3f})"
-                else:
-                    res[base_model]["Self-Preference"] = "NaN"
-            else:
-                res[base_model]["Average Score"] = res[base_model]["Unadjusted Average Score"]
-                res[base_model]["Self-Preference"] = "NaN"
+        if base_model in judges and (val := [x for x in adj_avg if not np.isnan(x)]):
+            am, se_a = compute_stats_with_resampling([np.array(val)], K)
+            ci_a = 1.96 * se_a
+            res[base_model]["Average Score"] = f"{am:.3f} ({am - ci_a:.3f}, {am + ci_a:.3f})"
+            
+            diffs = [(raw_avg[i] - adj_avg[i]) * len(judges) for i in range(K) if not np.isnan(adj_avg[i])]
+            if diffs:
+                sp_m, sp_s = compute_stats_with_resampling([np.array(diffs)], K)
+                sp_ci = 1.96 * sp_s
+                res[base_model]["Self-Preference"] = f"{sp_m:.3f} ({sp_m - sp_ci:.3f}, {sp_m + sp_ci:.3f})"
+            else: res[base_model]["Self-Preference"] = "NaN"
         else:
-            res[base_model]["Average Score"] = res[base_model]["Unadjusted Average Score"]
-            res[base_model]["Self-Preference"] = "NaN"
+            res[base_model].update({"Average Score": res[base_model]["Unadjusted Average Score"], 
+                                  "Self-Preference": "NaN"})
 
-        # For plotting: parse the "Average Score" or fallback
-        sc_str = res[base_model]["Average Score"] if base_model in judges else res[base_model]["Unadjusted Average Score"]
-        mVal,seVal = parse_mean_se(sc_str)
-        if not np.isnan(mVal) and not np.isnan(seVal):
+        sc_str = res[base_model]["Average Score" if base_model in judges else "Unadjusted Average Score"]
+        if not np.isnan((mVal := parse_mean_se(sc_str)[0])) and not np.isnan((seVal := parse_mean_se(sc_str)[1])):
             half = 1.96 * seVal
-            vis.append({
-                "model": base_model,
-                "score": mVal,
-                "ci_lower": mVal - half,
-                "ci_upper": mVal + half,
-                "color": get_model_color(base_model)
-            })
+            vis.append({"model": base_model, "score": mVal, "ci_lower": mVal - half,
+                       "ci_upper": mVal + half, "color": get_model_color(base_model)})
         else:
-            # fallback
-            vis.append({
-                "model": base_model,
-                "score": unmean,
-                "ci_lower": unmean - ci,
-                "ci_upper": unmean + ci,
-                "color": get_model_color(base_model)
-            })
+            vis.append({"model": base_model, "score": unmean, "ci_lower": unmean - ci,
+                       "ci_upper": unmean + ci, "color": get_model_color(base_model)})
 
     df_res = pd.DataFrame(res).T
 
     def wavg_ci(col, only_j=False):
-        pts = []
-        for i, row in df_res.iterrows():
-            if only_j and i not in judges: continue
-            mv, se_ = parse_mean_se(row[col]) if col in row else (np.nan, np.nan)
-            if not np.isnan(mv):
-                pts.append((row["n"], mv, se_))
+        pts = [(row["n"], mv, se_) for i, row in df_res.iterrows()
+               if (not only_j or i in judges)
+               and not np.isnan(mv := parse_mean_se(row.get(col, "NaN"))[0])
+               and not np.isnan(se_ := parse_mean_se(row.get(col, "NaN"))[1])]
         if not pts: return "NaN"
         N = sum(x[0] for x in pts)
         wm = sum(x[0]*x[1] for x in pts)/N
-        var_ = 0
-        for nn, mv, sev in pts:
-            if not np.isnan(sev):
-                var_ += (nn**2)*(sev**2)
-        wvar = var_/(N**2)
-        wse = np.sqrt(wvar)
-        ci95 = 1.96 * wse
-        return f"{wm:.3f} ({wm - ci95:.3f}, {wm + ci95:.3f})"
+        wse = np.sqrt(sum((nn**2)*(sev**2) for nn,_,sev in pts)/(N**2))
+        return f"{wm:.3f} ({wm - 1.96*wse:.3f}, {wm + 1.96*wse:.3f})"
 
-    # Weighted average row
-    w_row = {}
-    for c in df_res.columns:
-        if c == "completions": w_row[c] = ""
-        elif c == "n": w_row[c] = df_res["n"].sum()
-        elif c == "Self-Preference": w_row[c] = wavg_ci(c, True)
-        else: w_row[c] = wavg_ci(c, False)
-    df_res.loc["Weighted Average"] = w_row
-
-    return df_res, vis
+    df_res.loc["Weighted Average"] = {
+        "completions": "",
+        "n": df_res["n"].sum(),
+        **{c: wavg_ci(c, c=="Self-Preference") for c in df_res.columns if c not in ["completions","n"]}
+    }
+    return sort_models_df(df_res), vis
 
 def sort_models(vis_data):
-    """Sort models according to specified ordering."""
     judges = ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']
-    
-    # Split data into categories
-    judge_data = []
-    claude_data = []
-    gemini_data = []
-    gpt_data = []
-    other_data = []
-    
+    categories = defaultdict(list)
     for d in vis_data:
         model = d["model"]
-        if model in judges:
-            judge_data.append((judges.index(model), d))  # Keep judge order
-        elif model.startswith("claude"):
-            claude_data.append((model, d))
-        elif model.startswith("gemini"):
-            gemini_data.append((model, d))
-        elif model.startswith("gpt"):
-            gpt_data.append((model, d))
-        else:
-            other_data.append((model, d))
-    
-    # Sort each category
-    sorted_data = (
-        [d for _, d in sorted(judge_data, key=lambda x: x[0])] +  # Judges in specified order
-        [d for _, d in sorted(claude_data, key=lambda x: x[0])] +  # Other claude alphabetically
-        [d for _, d in sorted(gemini_data, key=lambda x: x[0])] +  # Other gemini alphabetically
-        [d for _, d in sorted(gpt_data, key=lambda x: x[0])] +     # Other gpt alphabetically
-        [d for _, d in sorted(other_data, key=lambda x: x[0])]     # Rest alphabetically
-    )
-    
-    return sorted_data
+        if model in judges: categories['judge'].append((judges.index(model), d))
+        elif model.startswith(('claude','gemini','gpt')):
+            categories[model.split('-')[0]].append((model, d))
+        else: categories['other'].append((model, d))
+    return ([d for _, d in sorted(categories['judge'])] +
+            [d for _, d in sorted(categories['claude'])] +
+            [d for _, d in sorted(categories['gemini'])] +
+            [d for _, d in sorted(categories['gpt'])] +
+            [d for _, d in sorted(categories['other'])])
 
 def plot_results(vis_data, save_path):
-    """Plot results with models in specified order."""
+    plt.figure(figsize=(14,8))
+    plt.rcParams.update({'font.size': 14})
     sorted_data = sort_models(vis_data)
-    
-    plt.figure(figsize=(14,8))  # Increased figure size
-    plt.rcParams.update({'font.size': 14})  # Base font size
-    
     x = np.arange(len(sorted_data))
-    sc = [d["score"] for d in sorted_data]
-    col = [d["color"] for d in sorted_data]
-    yerr = np.array([[d["score"]-d["ci_lower"] for d in sorted_data],
-                     [d["ci_upper"]-d["score"] for d in sorted_data]])
-    
-    bars = plt.bar(x, sc, color=col)
-    plt.errorbar(x, sc, yerr=yerr, fmt='none', ecolor='gray', capsize=5)
+    plt.bar(x, [d["score"] for d in sorted_data], color=[d["color"] for d in sorted_data])
+    plt.errorbar(x, [d["score"] for d in sorted_data],
+                yerr=[[d["score"]-d["ci_lower"] for d in sorted_data],
+                      [d["ci_upper"]-d["score"] for d in sorted_data]], 
+                fmt='none', ecolor='gray', capsize=5)
     plt.grid(False)
-    
     plt.xticks(x, [d["model"] for d in sorted_data], rotation=45, ha='right', fontsize=14)
-    plt.yticks(fontsize=14)  # Larger font for y-axis ticks
-    
-    # Adjust layout to prevent label cutoff
+    plt.yticks(fontsize=14)
     plt.tight_layout(pad=1.2)
     plt.savefig(save_path, bbox_inches='tight', dpi=300)
     plt.close()
 
 def plot_model_subset(vis_data, save_path, filter_func):
-    """Plot a subset of models based on filter function."""
-    subset_data = [d for d in vis_data if filter_func(d["model"])]
-    if subset_data:  # Only plot if we have data
+    if subset_data := [d for d in vis_data if filter_func(d["model"])]:
+        plt.figure(figsize=(14,8))
+        plt.rcParams.update({'font.size': 14})
         sorted_data = sort_models(subset_data)
-        
-        plt.figure(figsize=(14,8))  # Increased figure size
-        plt.rcParams.update({'font.size': 14})  # Base font size
-        
         x = np.arange(len(sorted_data))
-        sc = [d["score"] for d in sorted_data]
-        col = [d["color"] for d in sorted_data]
-        yerr = np.array([[d["score"]-d["ci_lower"] for d in sorted_data],
-                        [d["ci_upper"]-d["score"] for d in sorted_data]])
-        
-        bars = plt.bar(x, sc, color=col)
-        plt.errorbar(x, sc, yerr=yerr, fmt='none', ecolor='gray', capsize=5)
+        plt.bar(x, [d["score"] for d in sorted_data], color=[d["color"] for d in sorted_data])
+        plt.errorbar(x, [d["score"] for d in sorted_data],
+                    yerr=[[d["score"]-d["ci_lower"] for d in sorted_data],
+                          [d["ci_upper"]-d["score"] for d in sorted_data]],
+                    fmt='none', ecolor='gray', capsize=5)
         plt.grid(False)
-        
-        plt.xticks(x, [d["model"] for d in sorted_data], rotation=0, fontsize=14)  # Horizontal labels
-        plt.yticks(fontsize=14)  # Larger font for y-axis ticks
-        
-        # Adjust layout to prevent label cutoff
+        plt.xticks(x, [d["model"] for d in sorted_data], rotation=0, fontsize=14)
+        plt.yticks(fontsize=14)
         plt.tight_layout(pad=1.2)
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
         plt.close()
@@ -325,29 +209,26 @@ def main(dir_, save_path="results_plot.png"):
     print("\nLLM-as-a-Judge scores with pooled runs. 95% c.i. in brackets.\n")
     print(df)
     
-    # Main plot with all models
-    plot_results(vis, save_path)
+    # Save plots and print paths
+    save_paths = {
+        'main': os.path.abspath(save_path),
+        'judges': os.path.abspath("proprietary_large.png"),
+        'proprietary': os.path.abspath("proprietary_compact.png"),
+        'open': os.path.abspath("open.png")
+    }
     
-    # Define judges list
+    plot_results(vis, save_paths['main'])
     judges = ['claude-3-5-sonnet-20241022', 'gemini-1.5-pro-002', 'gpt-4o-2024-08-06']
     
-    # Plot judges only
-    plot_model_subset(vis, "proprietary_large.png", 
-                     lambda m: m in judges)
+    plot_model_subset(vis, save_paths['judges'], lambda m: m in judges)
+    plot_model_subset(vis, save_paths['proprietary'], 
+                     lambda m: m not in judges and m.startswith(('claude','gemini','gpt')))
+    plot_model_subset(vis, save_paths['open'],
+                     lambda m: m not in judges and not m.startswith(('claude','gemini','gpt')))
     
-    # Plot other proprietary models
-    plot_model_subset(vis, "proprietary_compact.png", 
-                     lambda m: m not in judges and 
-                     (m.startswith("claude") or 
-                      m.startswith("gemini") or 
-                      m.startswith("gpt")))
-    
-    # Plot open models
-    plot_model_subset(vis, "open.png", 
-                     lambda m: m not in judges and 
-                     not (m.startswith("claude") or 
-                          m.startswith("gemini") or 
-                          m.startswith("gpt")))
-
+    print("\nPlots saved at:")
+    for plot_type, path in save_paths.items():
+        print(f"{plot_type}: {path}")
+        
 if __name__ == "__main__":
     main("/content/drive/MyDrive/eval_outputs/")
