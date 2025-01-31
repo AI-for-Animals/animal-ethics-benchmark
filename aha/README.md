@@ -11,7 +11,7 @@ repository_url = "https://{token}@github.com/AI-for-Animals/animal-ethics-benchm
 !cd temp && git sparse-checkout init --cone && git sparse-checkout set aha && git checkout
 !mv temp/aha /content/ && rm -rf temp
 
-# 2 Clone the files
+# 2 Retrieve API keys & install dependencies
 import os
 os.environ['ANTHROPIC_API_KEY'] = userdata.get('ANTHROPIC_API_KEY')
 os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
