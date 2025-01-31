@@ -184,7 +184,7 @@ def main():
                     
                     # Run analysis for this batch
                     print(f"\nResults for batch {config.current_batch}:")
-                    os.system(f"python /content/anai/logfileanalysis.py --log-file {latest_log_path} --output-dir {config.output_dir}")
+                    os.system(f"python /content/aha/analysis.py --log-file {latest_log_path} --output-dir {config.output_dir}")
         
         end_time = time.time()
         total_time = end_time - start_time
