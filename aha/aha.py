@@ -26,7 +26,7 @@ class Config:
     def __init__(self, args):
         self.model = args.model
         self.scorer_models = args.scorer_models.split(',')
-        self.dataset_path = args.dataset or "/content/aha/data.json"
+        self.dataset_path = args.dataset or "/content/aha/data_public.json"
         self.output_dir = args.output_dir or "/content/aha/results"
         self.batch_size = args.batch_size
         self.seed = args.seed
