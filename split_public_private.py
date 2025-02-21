@@ -20,16 +20,20 @@ def main():
         combined_df = pd.read_csv(args.combined_full_filepath)
         public_mapping_df = pd.read_csv(args.public_mapping_filepath)
         
-        # Get the names of the second columns
-        combined_second_col = combined_df.columns[1]
+        # Get the column names
+        combined_columns = combined_df.columns.tolist()
         mapping_second_col = public_mapping_df.columns[1]
+        
+        # Only replace the second column name
+        combined_columns[1] = mapping_second_col
+        combined_df.columns = combined_columns
         
         # Create set of values from second column in public mapping
         public_values = set(public_mapping_df[mapping_second_col])
         
         # Split the combined dataframe
-        public_df = combined_df[combined_df[combined_second_col].isin(public_values)]
-        private_df = combined_df[~combined_df[combined_second_col].isin(public_values)]
+        public_df = combined_df[combined_df[mapping_second_col].isin(public_values)]
+        private_df = combined_df[~combined_df[mapping_second_col].isin(public_values)]
         
         # Reset the index column in both dataframes to start from 1
         public_df.iloc[:, 0] = range(1, len(public_df) + 1)
@@ -44,9 +48,8 @@ def main():
         print(f"Public split rows: {len(public_df)}")
         print(f"Private split rows: {len(private_df)}")
         print(f"Total original rows: {len(combined_df)}")
-        print(f"Mapping used second columns:")
-        print(f"  - Combined file: '{combined_second_col}'")
-        print(f"  - Public mapping file: '{mapping_second_col}'")
+        print(f"Column names used: {combined_columns}")
+        print(f"Second column name (from mapping file): '{mapping_second_col}'")
         
     except Exception as e:
         print(f"Error: {str(e)}")
